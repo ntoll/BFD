@@ -1,7 +1,6 @@
 # Big Friendly Datastore
 
-The Big Friendly Datastore. Organic collaboration on data, from the ground
-up. 🗂 🚀🤔👍
+Organic data collaboration, from the ground up. 🗂🚀🤔👍
 
 This is an experiment in data storage, aggregation and discovery.
 
@@ -14,8 +13,6 @@ This project uses Python 3.8+.
 3. `pip install -r requirements.txt`
 4. Type `make` to see a list of common developer related tasks. For instance,
    to run the full test suite and code checks type: `make check`.
-
-Developer documentation is in the `docs` sub-directory.
 
 ## Core Concepts
 
@@ -68,3 +65,11 @@ Why this? Why now?
 
 I find myself in need of such a data store, and since FluidDB is no more, I
 need to reheat the ocean with my own plastic kettle. 🤨
+
+## Contents
+```eval_rst
+.. toctree::
+   :maxdepth: 2
+
+   license.md
+```

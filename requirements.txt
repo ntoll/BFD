@@ -1,0 +1,17 @@
+alembic
+asynctest
+black
+coverage
+databases[sqlite]
+flake8
+mypy
+pycodestyle
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+pytest-random-order
+recommonmark
+starlette
+sphinx
+structlog
