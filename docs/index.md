@@ -71,5 +71,9 @@ need to reheat the ocean with my own plastic kettle. 🤨
 .. toctree::
    :maxdepth: 2
 
+   contributing.md
+   code_of_conduct.md
+   architecture.md
    license.md
+   authors.md
 ```
