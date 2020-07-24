@@ -37,10 +37,13 @@ Developer documentation is in the `docs` sub-directory.
 * Interrogate individual objects for readable namespaces/tags (that may match
   a pattern).
 * Events are raised when specific changes happen in the datastore. These are 
-  configured to call web-hooks so third parties can follow what's going on.
+  configured to call web-hooks so third parties can follow what's going on. The
+  event log can be used observe how the object and associated values changed
+  through time (i.e. versioning).
 * Data types understood by BFD: string, boolean, integer and floats. Blobs of
-  arbitrary bytes may also be stored (as a URL that referencng raw data
-  identified by mime-type).
+  arbitrary bytes may also be stored (as a URL that references raw data
+  identified by mime-type). There is no such thing as "null". If a value isn't
+  known, the tag is removed (but its presence is retained in the event log).
 
 ## Implementation
 
