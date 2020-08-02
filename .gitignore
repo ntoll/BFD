@@ -83,3 +83,7 @@ target/
 
 # MyPy
 .mypy_cache/
+
+# Django
+*.sqlite3
+.envrc

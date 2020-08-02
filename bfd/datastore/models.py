@@ -340,6 +340,6 @@ class BinaryValue(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["object_id", "namespace", "tag"],
-                name="unique-duration-val",
+                name="unique-binary-val",
             )
         ]
