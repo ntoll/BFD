@@ -1,3 +1,3 @@
-# BFD's Architecture
+# Architecture
 
 TBD

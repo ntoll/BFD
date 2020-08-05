@@ -1,4 +1,4 @@
-# BFD's Authors
+# Authors
 
 The following folks have made significant contributions to BFD's development by
 contributing code:

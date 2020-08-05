@@ -1,4 +1,4 @@
-# Contributing to BFD
+# Contributing
 
 Hey! Many thanks for wanting to improve BFD.
 
@@ -20,7 +20,7 @@ with respect, humour and intelligence wins every time.
   too, get involved.
 * This is a new community. *No-one knows what they are doing*, so, get involved.
 
-We expect contributors to follow our [code_of_conduct](code_of_conduct.md).
+We expect contributors to follow our [code of conduct](code_of_conduct.md).
 
 Feedback may be given for contributions and, where necessary, changes will
 be politely requested and discussed with the originating author. Respectful

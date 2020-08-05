@@ -1,9 +1,8 @@
 # Big Friendly Datastore
 
-The Big Friendly Datastore. Organic collaboration on data, from the ground
-up. 🗂 🚀🤔👍
+Organic data collaboration, from the ground up.
 
-This is an experiment in data storage, aggregation and discovery.
+This is an experiment in APIs, data storage, aggregation and discovery.
 
 ## Developer Setup
 
@@ -26,24 +25,26 @@ Developer documentation is in the `docs` sub-directory.
 * Namespaced tags annotate data on openly writeable objects. The
   combination of namespace (who) and tag (what) provide meaningful context
   for the data tagged onto the object.
-* Tag values containing data about objects can be queried via predicate based
-  comparison operations (`and`, `or`, `not`, `<`, `>`, `=`, `<=`, `>=`, `(`,
-  `)`), or naive string matching a la SQL `like` (and case insensitive `ilike`)
-  pattern matching operator on string values. Queries return specified tags on
-  matching objects.
-* Namespaces and tags have admins, users and readers. Admins configure
-  the namespaces/tags, users may annotate objects with the namespaces/tags and
-  readers can see the namespaces/tags and their associated values.
+* Tag values containing data about objects are typed and can be queried via
+  predicate based comparison operations (`and`, `or`, `not`, `<`, `>`, `=`,
+  `<=`, `>=`, `(`, `)`), or naive string matching a la SQL `like` (and case
+  insensitive `ilike`) pattern matching operator on string values. Queries
+  return specified tags on matching objects.
+* Namespaces have admins and tags have users and readers. Admins configure
+  the namespaces and tags belonging to their namespaces, users may annotate
+  objects with the namespaces/tags and readers can see the namespaces/tags and
+  their associated values.
 * Interrogate individual objects for readable namespaces/tags (that may match
   a pattern).
 * Events are raised when specific changes happen in the datastore. These are 
   configured to call web-hooks so third parties can follow what's going on. The
   event log can be used observe how the object and associated values changed
   through time (i.e. versioning).
-* Data types understood by BFD: string, boolean, integer and floats. Blobs of
-  arbitrary bytes may also be stored (as a URL that references raw data
-  identified by mime-type). There is no such thing as "null". If a value isn't
-  known, the tag is removed (but its presence is retained in the event log).
+* Data types understood by BFD: string, boolean, integer, floats, datetime and
+  duration. Geospatial types may also be added soon. Blobs of arbitrary bytes
+  may also be stored (as a URL that references raw data identified by
+  mime-type). There is no such thing as "null". If a value isn't known, the tag
+  is removed (but its historic presence is retained in the event log).
 
 ## Implementation
 
@@ -54,9 +55,7 @@ Developer documentation is in the `docs` sub-directory.
   `["nicholas", ]`, then only the user identified as "nicholas" can annotate
   with the namespace/tag. If the admins are set to, `["mary", "penelope", ]`,
   then only the users identified as "mary" and "penelope" may change the
-  behaviour of the namespace/tag.
-* A namespace's admins, users and readers are inherited by tags contained
-  within. However, individual tags can override this inheritance.
+  behaviour of the namespace and the tags contained therein.
 
 # Acknowledgements
 
