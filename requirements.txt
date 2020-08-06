@@ -9,5 +9,5 @@ drf_yasg
 flake8
 mypy
 pycodestyle
-sphinx
+sphinx==3.0.3
 structlog
