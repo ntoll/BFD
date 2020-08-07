@@ -1,21 +1,19 @@
-# The Creator's Code
+# Being Together
 
-Because we are limited beings,
-we make choices that are unwise or flawed.
+When being together,  
+acknowledge and work through differences.
 
-While others may meet us with hostility,
-we choose to acknowledge difference:
+This mutually enlarges and changes us.
 
-Thus we forgive.
+Therefore,
 
-This is a place of learning, understanding, teaching and sharing.
-This is a place to affirm valour and compassion.
+This is a place of learning, understanding, and sharing.  
+This is a place to affirm openness and compassion.  
 This is a place for collaborative creation.
 
-Be well, Creator. Be well and create.
+Dear friend, please be true to yourself yet kind to others  
+(even in the face of hostility).
+
+Thank you.
 
 ---
-
-Heavily inspired by the [Creator's Code](https://github.com/Xe/creators-code).
-Please read the link for more information.
-
