@@ -1,20 +1,32 @@
-# Being Together
+# On Being Together
 
-When being together,  
-acknowledge and work through differences.
+```
+When working together or if things go wrong,  
+we acknowledge and work through differences.  
+In so doing, we transform and enlarge each other.
 
-This mutually enlarges and changes us.
+To nurture our mutual growth,
 
-Therefore,
+  this is a place of  
+    learning, understanding, and sharing;  
 
-This is a place of learning, understanding, and sharing.  
-This is a place to affirm openness and compassion.  
-This is a place for collaborative creation.
+  this is a place to  
+    affirm tolerance and compassion;  
 
-Dear friend, please be true to yourself yet kind to others  
-(even in the face of hostility).
+  this is a place for  
+    collaborative creativity.
+
+All the aspects of yourself you choose to bring to this place  
+are welcome here.
+
+Reciprocate! Welcome, embrace and learn from others  
+(even in the face of apparent hostility or misunderstanding).
+
+To act against this spirit invites ostracism, 
+a loss that diminishes us all.
 
 Thank you.
+```
 
 ---
 
