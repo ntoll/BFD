@@ -17,9 +17,9 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import time
-from django.db import models
-from django.contrib.auth import User
-from django.utils.translation import gettext_lazy as _
+from django.db import models  # type: ignore
+from django.contrib.auth import User  # type: ignore
+from django.utils.translation import gettext_lazy as _  # type: ignore
 
 
 #: Defines the valid types of data with which BFD can work.
@@ -30,11 +30,11 @@ VALID_DATA_TYPES = (
     ("f", "float"),
     ("d", "datetime"),
     ("u", "duration"),
-    ("a", "binary (with mime type)"),
+    ("a", "binary"),
 )
 
 
-def upload_to(instance, filename):
+def upload_to(instance: BinaryValue, filename: str) -> str:
     """
     The object, namespace and tag form part of the path (along with a
     timestamp) for binary values tagged to objects.
