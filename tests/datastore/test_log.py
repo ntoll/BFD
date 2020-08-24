@@ -4,7 +4,7 @@ Tests for log configuration.
 Copyright (C) 2020 Nicholas H.Tollervey
 """
 import platform
-from bfd import log
+from bfd.datastore import log
 
 
 def test_host_info():

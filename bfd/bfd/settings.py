@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import uuid
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,6 +26,11 @@ SECRET_KEY = os.environ.get("BFD_KEY", "SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = bool(os.environ.get("BFD_DEBUG", False))
 
+# SECURITY WARNING: the UUID must remain the same for all instances.
+BFD_UUID = uuid.UUID(
+    os.environ.get("BFD_UUID", "431bb0cd-e9cb-41c2-bfb2-b6c19c89f676")
+)
+
 ALLOWED_HOSTS = []
 
 
@@ -37,6 +43,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "datastore",
 ]
 
 MIDDLEWARE = [
