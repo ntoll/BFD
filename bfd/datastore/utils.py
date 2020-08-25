@@ -2,7 +2,7 @@
 Contains utility functions used in all layers of the data store.
 """
 import uuid
-from django.conf import settings
+from django.conf import settings  # type: ignore
 
 
 def get_uuid(namespace_name: str, tag_name: str) -> uuid.UUID:

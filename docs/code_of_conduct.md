@@ -1,32 +1,32 @@
 # On Being Together
 
-```
-When working together or if things go wrong,  
-we acknowledge and work through differences.  
-In so doing, we transform and enlarge each other.
-
-To nurture our mutual growth,
-
-  this is a place of  
-    learning, understanding, and sharing;  
-
-  this is a place to  
-    affirm tolerance and compassion;  
-
-  this is a place for  
-    collaborative creativity.
-
-All the aspects of yourself you choose to bring to this place  
-are welcome here.
-
-Reciprocate! Welcome, embrace and learn from others  
-(even in the face of apparent hostility or misunderstanding).
-
-To act against this spirit invites ostracism, 
-a loss that diminishes us all.
-
-Thank you.
-```
+<div>
+When working together or if things go wrong,<br/>
+we acknowledge and work through differences.<br/>
+In so doing, we transform and enlarge each other.<br/>
+<br/>
+To nurture our mutual growth,<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;this is a place of<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;learning, understanding, and sharing;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;this is a place to<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;affirm tolerance and compassion;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;this is a place for<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;collaborative creativity.<br/>
+<br/>
+All the aspects of yourself you choose to bring to this place<br/>
+are welcome here.<br/>
+<br/>
+Reciprocate! Welcome, embrace and learn from others<br/>
+(even in the face of apparent hostility or misunderstanding).<br/>
+<br/>
+To act against this spirit invites ostracism,<br/>
+a loss that diminishes us all.<br/>
+<br/>
+Thank you.<br/>
+</div>
 
 ---
 

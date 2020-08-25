@@ -17,33 +17,41 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import structlog  # type: ignore
-from datetime import DateTime, TimeDelta
-from typing import Sequence, Dict, Union, Tuple
-from django.http import HttpRequest
+from typing import Sequence
+from django.http import HttpRequest  # type: ignore
 from django.contrib.auth.models import User  # type: ignore
 from django.utils.translation import gettext_lazy as _  # type: ignore
 from datastore import models
-from datastore.query import parse
+
+# from datastore.query import parse
+
+
+logger = structlog.get_logger()
 
 
 def create_namespace(
-    request: User, name: str, description: str, admins: Sequence
+    user: User, name: str, description: str, admins: Sequence
 ) -> models.Namespace:
     """
     Create a new namespace with the referenced description and user objects as
     administrators.
     """
-    n = models.Namespace.create(name=name, description=description)
-    if admins:
-        n.admins.add(*admins)
-    logger.msg(
-        "Create namespace.",
-        user=user.username,
-        namespace=name,
-        description=description,
-        admins=[admin.username for admin in admins],
-    )
-    return n
+    if user.is_superuser or user.username == name:
+        n = models.Namespace.create(name=name, description=description)
+        if admins:
+            n.admins.add(*admins)
+        logger.msg(
+            "Create namespace.",
+            user=user.username,
+            namespace=name,
+            description=description,
+            admins=[admin.username for admin in admins],
+        )
+        return n
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to create a new namespace.")
+        )
 
 
 def update_namespace_description(
@@ -175,7 +183,7 @@ def set_tag_private(
         user=user.username,
         tag=name,
         namespace=namespace,
-        private=is_private,
+        private=private,
     )
     return t
 
@@ -229,7 +237,7 @@ def add_tag_readers(
     """
     n = models.Namespace.objects.get(name=namespace)
     t = models.Tag.objects.get(name=name, namespace=n)
-    t.readers.add(*users)
+    t.readers.add(*readers)
     logger.msg(
         "Add tag readers.",
         user=user.username,
@@ -249,7 +257,7 @@ def remove_tag_readers(
     """
     n = models.Namespace.objects.get(name=namespace)
     t = models.Tag.objects.get(name=name, namespace=n)
-    t.readers.remove(*users)
+    t.readers.remove(*readers)
     logger.msg(
         "Remove tag readers.",
         user=user.username,

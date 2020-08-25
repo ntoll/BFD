@@ -16,11 +16,8 @@ with respect, humour and intelligence wins every time.
 * If you think you're an imposter, get involved.
 * If your day job isn't code, get involved.
 * This isn't a group of experts, just people. Get involved!
-* We are interested in data, social and technical problems. If you are
-  too, get involved.
-* This is a new community. *No-one knows what they are doing*, so, get involved.
 
-We expect contributors to follow our [code of conduct](code_of_conduct.md).
+We expect contributors to follow the spirit of [being together](code_of_conduct.md).
 
 Feedback may be given for contributions and, where necessary, changes will
 be politely requested and discussed with the originating author. Respectful
@@ -29,8 +26,12 @@ yet robust argument is most welcome.
 **Contributions are subject to the following caveats**: the contribution
 was created by the contributor who, by submitting the contribution, is
 confirming that they have the authority to submit the contribution and
-place it under the license as defined in the LICENSE file found within
-this repository.
+place it under the license as defined in the [LICENSE](license.md) file found
+within this repository. If this is a significant contribution
+the contributor should add themselves to the AUTHORS file found in the
+root of BFD's repository. Contributors agree, for the sake of convenience,
+that copyright passes exclusively to Nicholas H.Tollervey on behalf of the
+BFD project.
 
 ## Checklist
 

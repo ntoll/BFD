@@ -1,5 +1,20 @@
 """
 Tests for the datastore models.
+
+Copyright (C) 2020 Nicholas H.Tollervey (ntoll@ntoll.org).
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 from unittest import mock
 from datetime import datetime
@@ -114,10 +129,9 @@ class TagTestCase(TestCase):
         name = "my_tag"
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[0][0]
-        uuid = get_uuid(self.namespace.name, name)
         private = True
         with self.assertRaises(PermissionError):
-            tag = models.Tag.objects.create_tag(
+            models.Tag.objects.create_tag(
                 name, description, type_of, self.namespace, private, wrong_user
             )
 
@@ -128,13 +142,77 @@ class TagTestCase(TestCase):
         name = "my_tag"
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[0][0]
-        uuid = get_uuid(self.namespace.name, name)
         private = True
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
         expected = f"{self.namespace.name}/{name}"
         self.assertEqual(tag.path, expected)
+
+    def test_is_user(self):
+        """
+        Ensure the is_user method returns a true reflection of the user state
+        for referenced users. If a user is a user of a tag, it means they can
+        annotate an object via the tag.
+        """
+        not_a_user = User.objects.create_user(
+            username="test_user2", email="test2@user.com", password="password"
+        )
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[0][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        tag.users.add(self.user)
+        self.assertTrue(tag.is_user(self.user))
+        self.assertFalse(tag.is_user(not_a_user))
+
+    def test_is_reader_public(self):
+        """
+        If a tag is public, all users, no matter their other state with regard
+        to the tag, are readers. Readers can see values on objects annotated
+        via this tag.
+        """
+        not_a_reader = User.objects.create_user(
+            username="test_user2", email="test2@user.com", password="password"
+        )
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[0][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        tag.users.add(self.user)
+        self.assertTrue(tag.is_reader(self.user))
+        self.assertTrue(tag.is_reader(not_a_reader))
+
+    def test_is_reader_private(self):
+        """
+        If the tag is private, only users explicitly marked as "readers" or who
+        are able to annotate with the tag (they're users of the tag) are able
+        to see values on objects annotated via this tag.
+        """
+        is_a_reader = User.objects.create_user(
+            username="test_user2", email="test2@user.com", password="password"
+        )
+        not_a_reader = User.objects.create_user(
+            username="test_user3", email="test3@user.com", password="password"
+        )
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[0][0]
+        private = True
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        tag.users.add(self.user)
+        tag.readers.add(is_a_reader)
+        self.assertTrue(tag.is_reader(self.user))
+        self.assertTrue(tag.is_reader(is_a_reader))
+        self.assertFalse(tag.is_reader(not_a_reader))
 
 
 class AbstractBaseValueTestCase(TestCase):

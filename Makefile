@@ -35,22 +35,21 @@ else
 endif
 
 flake8:
-	flake8 --ignore=E231 --exclude=docs
+	flake8 --ignore=E231,W503 --exclude=docs,bfd/bfd,bfd/datastore/migrations,bfd/datastore/admin.py,bfd/datastore/apps.py
 
 mypy:
-	find . \( -name _build -o -name var -o -path ./docs -o -path ./integration \) -type d -prune -o -name '*.py' -print0 | $(XARGS) mypy
+	mypy --config-file=.mypy.ini
 
 test: clean
 	cd bfd && python manage.py test
 
 coverage: clean
-	cd bfd && coverage run --source='.' manage.py test
+	cd bfd && coverage run --omit=manage.py,bfd/*,datastore/admin.py,datastore/apps.py,datastore/migrations/*,datastore/tests/* --source='.' manage.py test
 	cd bfd && coverage report -m
 
 tidy: clean
 	@echo "\nTidying code with black..."
 	black -l 79 bfd 
-	black -l 79 tests
 
 check: clean tidy flake8 mypy coverage
 

@@ -17,7 +17,7 @@ with respect, humour and intelligence wins every time.
 * If your day job isn't code, get involved.
 * This isn't a group of experts, just people. Get involved!
 
-We expect contributors to follow our [code_of_conduct](CODE_OF_CONDUCT.md).
+We expect contributors to follow the spirit of [being together](CODE_OF_CONDUCT.md).
 
 Feedback may be given for contributions and, where necessary, changes will
 be politely requested and discussed with the originating author. Respectful
@@ -26,10 +26,10 @@ yet robust argument is most welcome.
 **Contributions are subject to the following caveats**: the contribution
 was created by the contributor who, by submitting the contribution, is
 confirming that they have the authority to submit the contribution and
-place it under the license as defined in the LICENSE file found within
-this repository (see :doc:`license`). If this is a significant contribution
+place it under the license as defined in the [LICENSE](LICENSE) file found
+within this repository. If this is a significant contribution
 the contributor should add themselves to the AUTHORS file found in the
-root of BFD's repository, otherwise they agree, for the sake of convenience,
+root of BFD's repository. Contributors agree, for the sake of convenience,
 that copyright passes exclusively to Nicholas H.Tollervey on behalf of the
 BFD project.
 

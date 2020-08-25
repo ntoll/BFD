@@ -214,11 +214,35 @@ class Tag(models.Model):
     objects = TagManager()
 
     @property
-    def path(self):
+    def path(self) -> str:
         """
         Return the human readable path for the tag.
         """
         return f"{self.namespace.name}/{self.name}"
+
+    def is_user(self, user: User) -> bool:
+        """
+        Return a boolean indication if the referenced user is able to write
+        values associated with this tag (the user can make use of this tag).
+        """
+        return self.users.filter(pk=user.pk).exists()
+
+    def is_reader(self, user: User) -> bool:
+        """
+        Return a boolean indication if the referenced user is able to read
+        values associated with this tag.
+
+        Non-private tags are visible to all.
+
+        If the tag is marked as private, only those who are explicitly
+        designated readers or who are able to write via this tag have
+        visibility of it.
+        """
+        return (
+            (not self.private)
+            or self.readers.filter(pk=user.pk).exists()
+            or self.users.filter(pk=user.pk).exists()
+        )
 
     class Meta:
         constraints = [
