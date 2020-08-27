@@ -35,7 +35,7 @@ else
 endif
 
 flake8:
-	flake8 --ignore=E231,W503 --exclude=docs,bfd/bfd,bfd/datastore/migrations,bfd/datastore/admin.py,bfd/datastore/apps.py
+	flake8 --ignore=E231,W503 --exclude=docs,bfd/bfd,bfd/datastore/migrations,bfd/datastore/apps.py
 
 mypy:
 	mypy --config-file=.mypy.ini
@@ -44,7 +44,7 @@ test: clean
 	cd bfd && python manage.py test
 
 coverage: clean
-	cd bfd && coverage run --omit=manage.py,bfd/*,datastore/admin.py,datastore/apps.py,datastore/migrations/*,datastore/tests/* --source='.' manage.py test
+	cd bfd && coverage run --omit=manage.py,bfd/*,datastore/apps.py,datastore/migrations/*,datastore/tests/* --source='.' manage.py test
 	cd bfd && coverage report -m
 
 tidy: clean

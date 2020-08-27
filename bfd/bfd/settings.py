@@ -88,6 +88,11 @@ DATABASES = {
 }
 
 
+# User defintion
+# https://docs.djangoproject.com/en/3.1/topics/auth/customizing/#specifying-a-custom-user-model
+AUTH_USER_MODEL = "datastore.User"
+
+
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 

@@ -18,8 +18,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import time
 from . import utils
+from django.apps import apps  # type: ignore
 from django.db import models  # type: ignore
-from django.contrib.auth.models import User  # type: ignore
+from django.contrib.auth.hashers import make_password  # type: ignore
+from django.contrib.auth.models import (  # type: ignore
+    AbstractUser,
+    UserManager,
+)
 from django.utils.translation import gettext_lazy as _  # type: ignore
 
 
@@ -34,6 +39,60 @@ VALID_DATA_TYPES = (
     ("a", "binary"),
     ("p", "pointer"),
 )
+
+
+class BFDUserManager(UserManager):
+    """
+    Overrides Django's built-in UserManager class to ensure the User model's
+    fields are verified:
+
+    * The username must be a valid SLUG.
+    * The email must be valid.
+    """
+
+    def _create_user(self, username, email, password, **extra_fields):
+        """
+        Create and save a user with the given username, email, and password.
+        """
+        if not username:
+            raise ValueError("The given username must be set")
+        email = self.normalize_email(email)
+        # Lookup the real model class from the global app registry so this
+        # manager method can be used in migrations. This is fine because
+        # managers are by definition working on the real model.
+        GlobalUserModel = apps.get_model(
+            self.model._meta.app_label, self.model._meta.object_name
+        )
+        username = GlobalUserModel.normalize_username(username)
+        user = self.model(username=username, email=email, **extra_fields)
+        user.password = make_password(password)
+        user.clean_fields()  # Validate the username and email.
+        user.save(using=self._db)
+        return user
+
+
+class User(AbstractUser):
+    """
+    A user of the BFD. Just like a regular Django user except their username
+    must be a valid SLUG field (so they get a validly named namespace that is
+    also their username, for their own personal use).
+    """
+
+    username = models.SlugField(
+        _("username"),
+        max_length=64,
+        allow_unicode=True,
+        unique=True,
+        help_text=_("Required. 64 characters or fewer. Must be a valid SLUG."),
+        error_messages={
+            "unique": _("A user with that username already exists.")
+        },
+    )
+
+    USERNAME_FIELD = "username"
+    EMAIL_FIELD = "email"
+
+    objects = BFDUserManager()
 
 
 class NamespaceManager(models.Manager):

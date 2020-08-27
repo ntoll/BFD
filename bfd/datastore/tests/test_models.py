@@ -19,9 +19,64 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 from unittest import mock
 from datetime import datetime
 from django.test import TestCase
-from django.contrib.auth.models import User
 from datastore import models
+from django.core.exceptions import ValidationError
 from datastore.utils import get_uuid
+
+
+class UserTestCase(TestCase):
+    """
+    Exercises the bespoke BFD User model.
+
+    The User model is exactly like the regular django.contrib.auth.models.User
+    model except that the "username" field *MUST* be a SLUG. This is to ensure
+    the user gets a validly named unique namespace for their personal use.
+    """
+
+    def test_create_user(self):
+        """
+        A user with a valid (SLUG) username is created as expected.
+        """
+        # Create the user.
+        user = models.User.objects.create_user(
+            username="test_user", email="test@user.com", password="password"
+        )
+        # Ensure it's in the database.
+        u = models.User.objects.get(username="test_user")
+        self.assertEqual(u.email, user.email)
+
+    def test_create_user_no_username(self):
+        """
+        If no username is given, a ValueError is raised.
+        """
+        with self.assertRaises(ValueError):
+            models.User.objects.create_user(
+                username="", email="test@user.com", password="password"
+            )
+
+    def test_create_user_invalid_username(self):
+        """
+        A user without a SLUG username results in a validation error.
+        """
+        # Try to create the user.
+        with self.assertRaises(ValidationError):
+            models.User.objects.create_user(
+                username=".test@user",
+                email="test@user.com",
+                password="password",
+            )
+
+    def test_create_user_invalid_email(self):
+        """
+        A user without a valid email address results in a validation error.
+        """
+        # Try to create the user.
+        with self.assertRaises(ValidationError):
+            models.User.objects.create_user(
+                username="test_user",
+                email="testuser.com",
+                password="password",
+            )
 
 
 class NamespaceTestCase(TestCase):
@@ -30,7 +85,7 @@ class NamespaceTestCase(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = models.User.objects.create_user(
             username="test_user", email="test@user.com", password="password"
         )
 
@@ -59,7 +114,7 @@ class TagTestCase(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = models.User.objects.create_user(
             username="test_user", email="test@user.com", password="password"
         )
         self.namespace = models.Namespace.objects.create_namespace(
@@ -123,7 +178,7 @@ class TagTestCase(TestCase):
         If the user creating the tag is not an admin associated with the parent
         namespace, then a PermissionError is raised.
         """
-        wrong_user = User.objects.create_user(
+        wrong_user = models.User.objects.create_user(
             username="wrong_user", email="wrong@user.com", password="password"
         )
         name = "my_tag"
@@ -155,7 +210,7 @@ class TagTestCase(TestCase):
         for referenced users. If a user is a user of a tag, it means they can
         annotate an object via the tag.
         """
-        not_a_user = User.objects.create_user(
+        not_a_user = models.User.objects.create_user(
             username="test_user2", email="test2@user.com", password="password"
         )
         name = "my_tag"
@@ -175,7 +230,7 @@ class TagTestCase(TestCase):
         to the tag, are readers. Readers can see values on objects annotated
         via this tag.
         """
-        not_a_reader = User.objects.create_user(
+        not_a_reader = models.User.objects.create_user(
             username="test_user2", email="test2@user.com", password="password"
         )
         name = "my_tag"
@@ -195,10 +250,10 @@ class TagTestCase(TestCase):
         are able to annotate with the tag (they're users of the tag) are able
         to see values on objects annotated via this tag.
         """
-        is_a_reader = User.objects.create_user(
+        is_a_reader = models.User.objects.create_user(
             username="test_user2", email="test2@user.com", password="password"
         )
-        not_a_reader = User.objects.create_user(
+        not_a_reader = models.User.objects.create_user(
             username="test_user3", email="test3@user.com", password="password"
         )
         name = "my_tag"
@@ -221,7 +276,7 @@ class AbstractBaseValueTestCase(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = models.User.objects.create_user(
             username="test_user", email="test@user.com", password="password"
         )
         self.namespace = models.Namespace.objects.create_namespace(
@@ -264,7 +319,7 @@ class UploadToTestCase(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = models.User.objects.create_user(
             username="test_user", email="test@user.com", password="password"
         )
         self.namespace = models.Namespace.objects.create_namespace(
