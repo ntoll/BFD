@@ -50,7 +50,9 @@ class BFDUserManager(UserManager):
     * The email must be valid.
     """
 
-    def _create_user(self, username, email, password, **extra_fields):
+    def _create_user(
+        self, username: str, email: str, password: str, **extra_fields
+    ):
         """
         Create and save a user with the given username, email, and password.
         """
@@ -164,6 +166,11 @@ class Namespace(models.Model):
 
     objects = NamespaceManager()
 
+    class Meta:
+        ordering = [
+            "name",
+        ]
+
 
 class TagManager(models.Manager):
     """
@@ -198,7 +205,6 @@ class TagManager(models.Manager):
         )
         if private:
             tag.users.add(user)
-            tag.readers.add(user)
         return tag
 
 
@@ -309,6 +315,9 @@ class Tag(models.Model):
                 fields=["namespace", "name"], name="unique-namespace-tag"
             )
         ]
+        ordering = [
+            "name",
+        ]
 
 
 class AbstractBaseValue(models.Model):
@@ -349,7 +358,7 @@ class AbstractBaseValue(models.Model):
     )
 
     @property
-    def path(self):
+    def path(self) -> str:
         """
         Return the human readable path for the value.
         """

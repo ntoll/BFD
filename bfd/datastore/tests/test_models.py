@@ -171,7 +171,6 @@ class TagTestCase(TestCase):
         self.assertIsInstance(tag.updated_on, datetime)
         self.assertEqual(tag.uuid, uuid)
         self.assertIn(self.user, tag.users.all())
-        self.assertIn(self.user, tag.readers.all())
 
     def test_create_tag_wrong_user(self):
         """

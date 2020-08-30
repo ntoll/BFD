@@ -17,7 +17,8 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import structlog  # type: ignore
-from typing import Sequence
+from typing import Sequence, Union, List, Dict
+from django.db.models import Q  # type: ignore
 from django.http import HttpRequest  # type: ignore
 from django.contrib.auth.models import User  # type: ignore
 from django.utils.translation import gettext_lazy as _  # type: ignore
@@ -30,22 +31,40 @@ logger = structlog.get_logger()
 
 
 def create_namespace(
-    user: User, name: str, description: str, admins: Sequence
+    user: User,
+    name: str,
+    description: str,
+    admins: Union[Sequence, None] = None,
 ) -> models.Namespace:
     """
     Create a new namespace with the referenced description and user objects as
-    administrators.
+    administrators. The user who creates the namespace is automatically
+    assigned administrator status.
+
+    Only site admins can create new arbitrary namespaces.
+
+    Regular users may only create a namespace if the name of the namespace is
+    the same as their (unique) username.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     if user.is_superuser or user.username == name:
-        n = models.Namespace.create(name=name, description=description)
+        n = models.Namespace.objects.create_namespace(
+            name=name, description=description, user=user
+        )
+        admin_list: List[User] = [
+            user,
+        ]
         if admins:
-            n.admins.add(*admins)
+            admin_list += [u for u in admins if u.id != user.id]
+        n.admins.add(*admin_list)
         logger.msg(
             "Create namespace.",
             user=user.username,
             namespace=name,
             description=description,
-            admins=[admin.username for admin in admins],
+            admins=[admin.username for admin in admin_list],
         )
         return n
     else:
@@ -54,22 +73,87 @@ def create_namespace(
         )
 
 
+def get_namespace(user: User, name: str) -> Dict:
+    """
+    Return a dictionary representation of the referenced Namespace as viewed by
+    the referenced user (with associated privileges).
+
+    Admin users see all attributes of all aspects of the namespace. Regular
+    users see a limited set of attributes on only those aspects of the
+    namespace for which they have privileges to see.
+    """
+    n = models.Namespace.objects.get(name=name)
+    result = {
+        "name": n.name,
+        "description": n.description,
+    }
+    tags: List[Dict] = []
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        result["created_by"] = n.created_by.username
+        result["created_on"] = str(n.created_on)
+        result["updated_by"] = n.updated_by.username
+        result["updated_on"] = str(n.updated_on)
+        for tag in n.tag_set.all():
+            tags.append(
+                {
+                    "name": tag.name,
+                    "description": tag.description,
+                    "type_of": tag.get_type_of_display(),
+                    "private": tag.private,
+                    "users": [user.username for user in tag.users.all()],
+                    "readers": [
+                        reader.username for reader in tag.readers.all()
+                    ],
+                    "created_by": tag.created_by.username,
+                    "created_on": str(tag.created_on),
+                    "updated_by": tag.updated_by.username,
+                    "updated_on": str(tag.updated_on),
+                }
+            )
+    else:
+        # Get all public tags, or tags where the user is a user or reader.
+        query = n.tag_set.filter(
+            Q(private=False) | Q(users__id=user.id) | Q(readers__id=user.id)
+        )
+        for tag in query:
+            tags.append(
+                {
+                    "name": tag.name,
+                    "description": tag.description,
+                    "type_of": tag.get_type_of_display(),
+                }
+            )
+    result["tags"] = tags
+    return result
+
+
 def update_namespace_description(
     user: User, name: str, description: str
 ) -> models.Namespace:
     """
     Update the description of the namespace with the referenced name.
+
+    Only site admins or regular users in the namespace's "admins" group may
+    make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=name)
-    n.description = description
-    n.save()
-    logger.msg(
-        "Update namespace description.",
-        user=user.username,
-        namespace=name,
-        description=description,
-    )
-    return n
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        n.description = description
+        n.save()
+        logger.msg(
+            "Update namespace description.",
+            user=user.username,
+            namespace=name,
+            description=description,
+        )
+        return n
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to describe a namespace.")
+        )
 
 
 def add_namespace_admins(
@@ -77,16 +161,27 @@ def add_namespace_admins(
 ) -> models.Namespace:
     """
     Add the referenced user objects as administrators of the Namespace.
+
+    Only site admins or regular users in the namespace's "admins" group may
+    make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=name)
-    n.admins.add(*admins)
-    logger.msg(
-        "Add namespace administrators.",
-        user=user.username,
-        namespace=name,
-        admins=[admin.username for admin in admins],
-    )
-    return n
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        n.admins.add(*admins)
+        logger.msg(
+            "Add namespace administrators.",
+            user=user.username,
+            namespace=name,
+            admins=[admin.username for admin in admins],
+        )
+        return n
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to add admins to namespace.")
+        )
 
 
 def remove_namespace_admins(
@@ -94,16 +189,27 @@ def remove_namespace_admins(
 ) -> models.Namespace:
     """
     Remove the referenced user objects as administrators of the Namespace.
+
+    Only site admins or regular users in the namespace's "admins" group may
+    make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=name)
-    n.admins.remove(*admins)
-    logger.msg(
-        "Remove namespace administrators.",
-        user=user.username,
-        namespace=name,
-        admins=[admin.username for admin in admins],
-    )
-    return n
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        n.admins.remove(*admins)
+        logger.msg(
+            "Remove namespace administrators.",
+            user=user.username,
+            namespace=name,
+            admins=[admin.username for admin in admins],
+        )
+        return n
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to delete admins from namespace.")
+        )
 
 
 def create_tag(
@@ -113,39 +219,59 @@ def create_tag(
     type_of: str,
     namespace: models.Namespace,
     private: bool,
-    users: Sequence,
-    readers: Sequence,
+    users: Union[Sequence, None] = None,
+    readers: Union[Sequence, None] = None,
 ) -> models.Tag:
     """
     Create a new tag with the referenced name, description, type and namespace.
     Only users may use the resulting tag to annotate data onto objects.
-    If the private flag is True then the readers should contain
-    users who are exceptions to the private flag. Users may read and annotate
-    with the tag. Readers may only read.
+
+    If the private flag is True then the readers should contain users who are
+    exceptions to the private flag.
+
+    Users may read and annotate with the tag. Readers may only read.
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
-    t = models.Tag.create(
-        name=name,
-        description=description,
-        type_of=type_of,
-        namespace=namespace,
-        private=private,
-    )
-    if users:
-        t.users.add(*users)
-    if readers:
-        t.readers.add(*readers)
-    logger.msg(
-        "Create tag.",
-        user=user.username,
-        name=name,
-        description=description,
-        type_of=t.get_type_of_display(),
-        namespace=namespace.name,
-        private=private,
-        users=[u.username for u in users],
-        readers=[r.username for r in readers],
-    )
-    return t
+    if user.is_superuser or namespace.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.create_tag(
+            user=user,
+            name=name,
+            description=description,
+            type_of=type_of,
+            namespace=namespace,
+            private=private,
+        )
+        users_list: List[User] = [
+            user,
+        ]
+        if users:
+            users_list += [u for u in users if u.id != user.id]
+        t.users.add(*users_list)
+        if readers:
+            t.readers.add(*readers)
+        else:
+            readers = []
+        logger.msg(
+            "Create tag.",
+            user=user.username,
+            name=name,
+            description=description,
+            type_of=t.get_type_of_display(),
+            namespace=namespace.name,
+            private=private,
+            users=[u.username for u in users_list],
+            readers=[r.username for r in readers],
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to create a tag in the namespace.")
+        )
 
 
 def update_tag_description(
@@ -153,19 +279,30 @@ def update_tag_description(
 ) -> models.Tag:
     """
     Update the description of the tag with the referenced name and namespace.
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    t = models.Tag.objects.get(name=name, namespace=n)
-    t.description = description
-    t.save()
-    logger.msg(
-        "Update tag description.",
-        user=user.username,
-        tag=name,
-        namespace=namespace,
-        description=description,
-    )
-    return t
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.get(name=name, namespace=n)
+        t.description = description
+        t.save()
+        logger.msg(
+            "Update tag description.",
+            user=user.username,
+            tag=name,
+            namespace=namespace,
+            description=description,
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to update the tag.")
+        )
 
 
 def set_tag_private(
@@ -173,19 +310,30 @@ def set_tag_private(
 ) -> models.Tag:
     """
     Set the referenced tag's private flag.
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    t = models.Tag.objects.get(name=name, namespace=n)
-    t.private = private
-    t.save()
-    logger.msg(
-        "Update tag privacy.",
-        user=user.username,
-        tag=name,
-        namespace=namespace,
-        private=private,
-    )
-    return t
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.get(name=name, namespace=n)
+        t.private = private
+        t.save()
+        logger.msg(
+            "Update tag privacy.",
+            user=user.username,
+            tag=name,
+            namespace=namespace,
+            private=private,
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to update the tag.")
+        )
 
 
 def add_tag_users(
@@ -194,18 +342,29 @@ def add_tag_users(
     """
     Add the referenced user objects to the tag's users list (who can both
     annotate and read the tag).
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    t = models.Tag.objects.get(name=name, namespace=n)
-    t.users.add(*users)
-    logger.msg(
-        "Add tag users.",
-        user=user.username,
-        tag=name,
-        namespace=namespace,
-        users=[u.username for u in users],
-    )
-    return t
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.get(name=name, namespace=n)
+        t.users.add(*users)
+        logger.msg(
+            "Add tag users.",
+            user=user.username,
+            tag=name,
+            namespace=namespace,
+            users=[u.username for u in users],
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to add users to the tag.")
+        )
 
 
 def remove_tag_users(
@@ -214,18 +373,29 @@ def remove_tag_users(
     """
     Remove the referenced user object from the tag's users list (who can both
     annotate and read the tag).
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    t = models.Tag.objects.get(name=name, namespace=n)
-    t.users.remove(*users)
-    logger.msg(
-        "Remove tag users.",
-        user=user.username,
-        tag=name,
-        namespace=namespace,
-        users=[u.username for u in users],
-    )
-    return t
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.get(name=name, namespace=n)
+        t.users.remove(*users)
+        logger.msg(
+            "Remove tag users.",
+            user=user.username,
+            tag=name,
+            namespace=namespace,
+            users=[u.username for u in users],
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to remove users from the tag.")
+        )
 
 
 def add_tag_readers(
@@ -234,18 +404,29 @@ def add_tag_readers(
     """
     Add the referenced user objects to the tag's readers list (who can read a
     private tag).
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    t = models.Tag.objects.get(name=name, namespace=n)
-    t.readers.add(*readers)
-    logger.msg(
-        "Add tag readers.",
-        user=user.username,
-        tag=name,
-        namespace=namespace,
-        readers=[r.username for r in readers],
-    )
-    return t
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.get(name=name, namespace=n)
+        t.readers.add(*readers)
+        logger.msg(
+            "Add tag readers.",
+            user=user.username,
+            tag=name,
+            namespace=namespace,
+            readers=[r.username for r in readers],
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to add readers to the tag.")
+        )
 
 
 def remove_tag_readers(
@@ -254,18 +435,29 @@ def remove_tag_readers(
     """
     Remove the referenced user objects from the tag's readers list (those who
     can read a private tag).
+
+    Only site admins or regular users in the parent namespace's "admins" group
+    may make this change.
+
+    Any other user making such a request will result in a PermissionError
+    being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    t = models.Tag.objects.get(name=name, namespace=n)
-    t.readers.remove(*readers)
-    logger.msg(
-        "Remove tag readers.",
-        user=user.username,
-        tag=name,
-        namespace=namespace,
-        readers=[r.username for r in readers],
-    )
-    return t
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        t = models.Tag.objects.get(name=name, namespace=n)
+        t.readers.remove(*readers)
+        logger.msg(
+            "Remove tag readers.",
+            user=user.username,
+            tag=name,
+            namespace=namespace,
+            readers=[r.username for r in readers],
+        )
+        return t
+    else:
+        raise PermissionError(
+            _("User doesn't have permission to remove readers from the tag.")
+        )
 
 
 def get_object_tags(user: User, object_id: str) -> Sequence[str]:
