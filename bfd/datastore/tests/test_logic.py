@@ -357,10 +357,18 @@ class NamespaceTestCase(TestCase):
         update the namespace's description.
         """
         new_description = "This is an updated namespace description."
-        result = logic.update_namespace_description(
-            self.admin_user, self.namespace_name, new_description
-        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.update_namespace_description(
+                self.admin_user, self.namespace_name, new_description
+            )
         self.assertEqual(result.description, new_description)
+        mock_logger.msg.assert_called_once_with(
+            "Update namespace description.",
+            user=self.admin_user.username,
+            namespace=self.namespace_name,
+            description=new_description,
+        )
 
     def test_update_namespace_description_as_site_admin(self):
         """
@@ -368,10 +376,18 @@ class NamespaceTestCase(TestCase):
         namespace's description.
         """
         new_description = "This is an updated namespace description."
-        result = logic.update_namespace_description(
-            self.site_admin_user, self.namespace_name, new_description
-        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.update_namespace_description(
+                self.site_admin_user, self.namespace_name, new_description
+            )
         self.assertEqual(result.description, new_description)
+        mock_logger.msg.assert_called_once_with(
+            "Update namespace description.",
+            user=self.site_admin_user.username,
+            namespace=self.namespace_name,
+            description=new_description,
+        )
 
     def test_update_namespace_description_as_normal_user(self):
         """
@@ -389,24 +405,40 @@ class NamespaceTestCase(TestCase):
         Admin users are allowed to add other users to the admin role.
         """
         new_admins = [self.normal_user, self.tag_reader]
-        result = logic.add_namespace_admins(
-            self.admin_user, self.namespace_name, new_admins
-        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.add_namespace_admins(
+                self.admin_user, self.namespace_name, new_admins
+            )
         current_admins = result.admins.all()
         for user in new_admins:
             self.assertIn(user, current_admins)
+        mock_logger.msg.assert_called_once_with(
+            "Add namespace administrators.",
+            user=self.admin_user.username,
+            namespace=self.namespace_name,
+            admins=[u.username for u in new_admins],
+        )
 
     def test_add_namespace_admins_as_site_admin(self):
         """
         Site admin users are allowed to add other users to the admin role.
         """
         new_admins = [self.normal_user, self.tag_reader]
-        result = logic.add_namespace_admins(
-            self.site_admin_user, self.namespace_name, new_admins
-        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.add_namespace_admins(
+                self.site_admin_user, self.namespace_name, new_admins
+            )
         current_admins = result.admins.all()
         for user in new_admins:
             self.assertIn(user, current_admins)
+        mock_logger.msg.assert_called_once_with(
+            "Add namespace administrators.",
+            user=self.site_admin_user.username,
+            namespace=self.namespace_name,
+            admins=[u.username for u in new_admins],
+        )
 
     def test_add_namespace_admins_as_normal_user(self):
         """
@@ -425,24 +457,40 @@ class NamespaceTestCase(TestCase):
         from the admin role.
         """
         old_admins = [self.admin_user, self.tag_reader]
-        result = logic.remove_namespace_admins(
-            self.admin_user, self.namespace_name, old_admins
-        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.remove_namespace_admins(
+                self.admin_user, self.namespace_name, old_admins
+            )
         current_admins = result.admins.all()
         for user in old_admins:
             self.assertNotIn(user, current_admins)
+        mock_logger.msg.assert_called_once_with(
+            "Remove namespace administrators.",
+            user=self.admin_user.username,
+            namespace=self.namespace_name,
+            admins=[u.username for u in old_admins],
+        )
 
     def test_remove_namespace_admins_as_site_admin(self):
         """
         Site admin users are allowed to remove other users from the admin role.
         """
         old_admins = [self.admin_user, self.tag_reader]
-        result = logic.remove_namespace_admins(
-            self.site_admin_user, self.namespace_name, old_admins
-        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.remove_namespace_admins(
+                self.site_admin_user, self.namespace_name, old_admins
+            )
         current_admins = result.admins.all()
         for user in old_admins:
             self.assertNotIn(user, current_admins)
+        mock_logger.msg.assert_called_once_with(
+            "Remove namespace administrators.",
+            user=self.site_admin_user.username,
+            namespace=self.namespace_name,
+            admins=[u.username for u in old_admins],
+        )
 
     def test_remove_namespace_admins_as_normal_user(self):
         """
@@ -455,4 +503,716 @@ class NamespaceTestCase(TestCase):
         with self.assertRaises(PermissionError):
             logic.remove_namespace_admins(
                 self.normal_user, self.namespace_name, old_admins
+            )
+
+
+class TagTestCase(TestCase):
+    """
+    Exercises the tag related administrative functions.
+    """
+
+    def setUp(self):
+        self.site_admin_user = models.User.objects.create_user(
+            username="site_admin_user",
+            email="test@user.com",
+            password="password",
+            is_superuser=True,
+        )
+        self.admin_user = models.User.objects.create_user(
+            username="admin_user", email="test2@user.com", password="password",
+        )
+        self.tag_user = models.User.objects.create_user(
+            username="tag_user", email="test3@user.com", password="password",
+        )
+        self.tag_reader = models.User.objects.create_user(
+            username="tag_reader", email="test4@user.com", password="password",
+        )
+        self.normal_user = models.User.objects.create_user(
+            username="normal_user",
+            email="test5@user.com",
+            password="password",
+        )
+        self.namespace_name = "test_namespace"
+        self.namespace_description = "This is a test namespace."
+        self.test_namespace = logic.create_namespace(
+            self.site_admin_user,
+            self.namespace_name,
+            self.namespace_description,
+            admins=[self.admin_user,],
+        )
+        self.public_tag_name = "public_tag"
+        self.public_tag_description = "This is a public tag."
+        self.public_tag_type_of = "s"
+        self.public_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.public_tag_name,
+            description=self.public_tag_description,
+            type_of=self.public_tag_type_of,
+            namespace=self.test_namespace,
+            private=False,
+        )
+
+    def test_create_tag_as_site_admin(self):
+        """
+        Ensure a site admin user who creates the tag is assigned the
+        expected user role and the tag's creation is logged.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = "s"  # string
+        is_private = False
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            tag = logic.create_tag(
+                self.site_admin_user,
+                name,
+                description,
+                type_of,
+                self.test_namespace,
+                is_private,
+            )
+            self.assertEqual(tag.name, name)
+            self.assertEqual(tag.description, description)
+            self.assertEqual(tag.type_of, type_of)
+            self.assertEqual(tag.namespace, self.test_namespace)
+            self.assertFalse(tag.private)
+            self.assertIn(self.site_admin_user, tag.users.all())
+            self.assertEqual(0, len(tag.readers.all()))
+            mock_logger.msg.assert_called_once_with(
+                "Create tag.",
+                user=self.site_admin_user.username,
+                name=name,
+                description=description,
+                type_of=tag.get_type_of_display(),
+                namespace=self.test_namespace.name,
+                private=is_private,
+                users=[self.site_admin_user.username,],
+                readers=[],
+            )
+
+    def test_create_tag_as_admin(self):
+        """
+        Ensure a namespace admin user who creates the tag is assigned the
+        expected user role and the tag's creation is logged.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = "s"  # string
+        is_private = False
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            tag = logic.create_tag(
+                self.admin_user,
+                name,
+                description,
+                type_of,
+                self.test_namespace,
+                is_private,
+            )
+            self.assertEqual(tag.name, name)
+            self.assertEqual(tag.description, description)
+            self.assertEqual(tag.type_of, type_of)
+            self.assertEqual(tag.namespace, self.test_namespace)
+            self.assertFalse(tag.private)
+            self.assertIn(self.admin_user, tag.users.all())
+            self.assertEqual(0, len(tag.readers.all()))
+            mock_logger.msg.assert_called_once_with(
+                "Create tag.",
+                user=self.admin_user.username,
+                name=name,
+                description=description,
+                type_of=tag.get_type_of_display(),
+                namespace=self.test_namespace.name,
+                private=is_private,
+                users=[self.admin_user.username,],
+                readers=[],
+            )
+
+    def test_create_tag_with_users_and_readers_list(self):
+        """
+        If there are users with users and readers roles passed into the
+        create_tag function, then they are found with the expected roles in
+        relation to the tag.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = "s"  # string
+        is_private = False
+        users = [
+            self.tag_user,
+        ]
+        readers = [
+            self.tag_reader,
+        ]
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            tag = logic.create_tag(
+                self.site_admin_user,
+                name,
+                description,
+                type_of,
+                self.test_namespace,
+                is_private,
+                users,
+                readers,
+            )
+            self.assertEqual(tag.name, name)
+            self.assertEqual(tag.description, description)
+            self.assertEqual(tag.type_of, type_of)
+            self.assertEqual(tag.namespace, self.test_namespace)
+            self.assertFalse(tag.private)
+            self.assertEqual(2, len(tag.users.all()))
+            self.assertIn(self.site_admin_user, tag.users.all())
+            self.assertIn(self.tag_user, tag.users.all())
+            self.assertEqual(1, len(tag.readers.all()))
+            self.assertIn(self.tag_reader, tag.readers.all())
+            mock_logger.msg.assert_called_once_with(
+                "Create tag.",
+                user=self.site_admin_user.username,
+                name=name,
+                description=description,
+                type_of=tag.get_type_of_display(),
+                namespace=self.test_namespace.name,
+                private=is_private,
+                users=[self.site_admin_user.username, self.tag_user.username,],
+                readers=[self.tag_reader.username,],
+            )
+
+    def test_create_tag_with_normal_user(self):
+        """
+        A user who isn't a site admin or who has the role of admin for the
+        referenced namespace cannot create a new tag. A PermissionError is
+        raised instead.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = "s"  # string
+        is_private = False
+        with self.assertRaises(PermissionError):
+            logic.create_tag(
+                self.normal_user,
+                name,
+                description,
+                type_of,
+                self.test_namespace,
+                is_private,
+            )
+
+    def test_get_tag_as_admin_user(self):
+        """
+        Those with administrator privileges on the namespace are able to see
+        the full metadata associated with the referenced tag.
+        """
+        n = models.Namespace.objects.get(name=self.namespace_name)
+        tag = models.Tag.objects.get(name=self.public_tag_name, namespace=n)
+        result = logic.get_tag(
+            self.admin_user, self.public_tag_name, self.namespace_name
+        )
+        self.assertEqual(result["name"], tag.name)
+        self.assertEqual(result["namespace"], n.name)
+        self.assertEqual(result["description"], tag.description)
+        self.assertEqual(result["path"], tag.path)
+        self.assertEqual(result["type_of"], tag.get_type_of_display())
+        self.assertEqual(result["private"], tag.private)
+        self.assertEqual(
+            result["users"], [user.username for user in tag.users.all()]
+        )
+        self.assertEqual(
+            result["readers"],
+            [reader.username for reader in tag.readers.all()],
+        )
+        self.assertEqual(result["created_by"], tag.created_by.username)
+        self.assertEqual(result["created_on"], str(tag.created_on))
+        self.assertEqual(result["updated_by"], tag.updated_by.username)
+        self.assertEqual(result["updated_on"], str(tag.updated_on))
+
+    def test_get_tag_as_tag_user(self):
+        """
+        Those with user privileges on the tag are able to see limited metadata
+        associated with the referenced tag.
+        """
+        n = models.Namespace.objects.get(name=self.namespace_name)
+        tag = models.Tag.objects.get(name=self.public_tag_name, namespace=n)
+        tag.users.add(self.tag_user)
+        tag.private = True
+        tag.save()
+        result = logic.get_tag(
+            self.tag_user, self.public_tag_name, self.namespace_name
+        )
+        self.assertEqual(result["name"], tag.name)
+        self.assertEqual(result["namespace"], n.name)
+        self.assertEqual(result["description"], tag.description)
+        self.assertEqual(result["path"], tag.path)
+        self.assertEqual(result["type_of"], tag.get_type_of_display())
+        self.assertEqual(result["private"], tag.private)
+
+    def test_get_tag_as_tag_reader(self):
+        """
+        Those with reader privileges on the tag are able to see limited
+        metadata associated with the referenced tag.
+        """
+        n = models.Namespace.objects.get(name=self.namespace_name)
+        tag = models.Tag.objects.get(name=self.public_tag_name, namespace=n)
+        tag.readers.add(self.tag_reader)
+        tag.private = True
+        tag.save()
+        result = logic.get_tag(
+            self.tag_reader, self.public_tag_name, self.namespace_name
+        )
+        self.assertEqual(result["name"], tag.name)
+        self.assertEqual(result["namespace"], n.name)
+        self.assertEqual(result["description"], tag.description)
+        self.assertEqual(result["path"], tag.path)
+        self.assertEqual(result["type_of"], tag.get_type_of_display())
+        self.assertEqual(result["private"], tag.private)
+
+    def test_get_tag_as_normal_user(self):
+        """
+        Normal users can see limited metadata associated with the referenced
+        non-private tag.
+        """
+        n = models.Namespace.objects.get(name=self.namespace_name)
+        tag = models.Tag.objects.get(name=self.public_tag_name, namespace=n)
+        result = logic.get_tag(
+            self.normal_user, self.public_tag_name, self.namespace_name
+        )
+        self.assertEqual(result["name"], tag.name)
+        self.assertEqual(result["namespace"], n.name)
+        self.assertEqual(result["description"], tag.description)
+        self.assertEqual(result["path"], tag.path)
+        self.assertEqual(result["type_of"], tag.get_type_of_display())
+        self.assertEqual(result["private"], tag.private)
+
+    def test_get_tag_as_private_normal_user(self):
+        """
+        Normal users cannot see any metadata associated with a non-private tag.
+        Results in a PermissionError being thrown.
+        """
+        n = models.Namespace.objects.get(name=self.namespace_name)
+        tag = models.Tag.objects.get(name=self.public_tag_name, namespace=n)
+        tag.private = True
+        tag.save()
+        with self.assertRaises(PermissionError):
+            logic.get_tag(
+                self.normal_user, self.public_tag_name, self.namespace_name
+            )
+
+    def test_update_tag_description_as_admin(self):
+        """
+        Those with administrator privileges on the namesapce are able to
+        update the tag's description.
+        """
+        new_description = "This is an updated tag description."
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.update_tag_description(
+                self.admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_description,
+            )
+        self.assertEqual(result.description, new_description)
+        mock_logger.msg.assert_called_once_with(
+            "Update tag description.",
+            user=self.admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            description=new_description,
+        )
+
+    def test_update_tag_description_as_site_admin(self):
+        """
+        Those with site administrator privileges are able to update the
+        tag's description.
+        """
+        new_description = "This is an updated tag description."
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.update_tag_description(
+                self.site_admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_description,
+            )
+        self.assertEqual(result.description, new_description)
+        mock_logger.msg.assert_called_once_with(
+            "Update tag description.",
+            user=self.site_admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            description=new_description,
+        )
+
+    def test_update_tag_description_as_normal_user(self):
+        """
+        Normal users may not update a namespace's description - a
+        PermissionError is raised as a result.
+        """
+        new_description = "This is an updated namespace description."
+        with self.assertRaises(PermissionError):
+            logic.update_tag_description(
+                self.normal_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_description,
+            )
+
+    def test_set_tag_private_as_admin(self):
+        """
+        Those with administrator privileges on the namesapce are able to
+        update the tag's "private" flag.
+        """
+        self.assertFalse(self.public_tag.private)
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.set_tag_private(
+                self.admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                True,
+            )
+        self.assertTrue(result.private)
+        mock_logger.msg.assert_called_once_with(
+            "Update tag privacy.",
+            user=self.admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            private=True,
+        )
+
+    def test_set_tag_private_as_site_admin(self):
+        """
+        Those with site administrator privileges are able to update the
+        tag's "private" flag.
+        """
+        self.assertFalse(self.public_tag.private)
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.set_tag_private(
+                self.site_admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                True,
+            )
+        self.assertTrue(result.private)
+        mock_logger.msg.assert_called_once_with(
+            "Update tag privacy.",
+            user=self.site_admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            private=True,
+        )
+
+    def test_set_tag_private_as_normal_user(self):
+        """
+        Normal users may not update a tag's "private" flag - a
+        PermissionError is raised as a result.
+        """
+        self.assertFalse(self.public_tag.private)
+        with self.assertRaises(PermissionError):
+            logic.set_tag_private(
+                self.normal_user,
+                self.public_tag_name,
+                self.namespace_name,
+                True,
+            )
+
+    def test_add_tag_users_as_admin(self):
+        """
+        Admin users are allowed to add users to the users role.
+        """
+        new_users = [
+            self.normal_user,
+            self.tag_user,
+        ]
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.add_tag_users(
+                self.admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_users,
+            )
+        current_users = result.users.all()
+        for user in new_users:
+            self.assertIn(user, current_users)
+        mock_logger.msg.assert_called_once_with(
+            "Add tag users.",
+            user=self.admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            users=[u.username for u in new_users],
+        )
+
+    def test_add_tag_users_as_site_admin(self):
+        """
+        Site admin users are allowed to add users to the users role for the
+        tag.
+        """
+        new_users = [
+            self.normal_user,
+            self.tag_user,
+        ]
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.add_tag_users(
+                self.site_admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_users,
+            )
+        current_users = result.users.all()
+        for user in new_users:
+            self.assertIn(user, current_users)
+        mock_logger.msg.assert_called_once_with(
+            "Add tag users.",
+            user=self.site_admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            users=[u.username for u in new_users],
+        )
+
+    def test_add_tag_users_as_normal_user(self):
+        """
+        Normal users may not add other users to the users role - a
+        PermissionError is raised as a result.
+        """
+        new_users = [
+            self.normal_user,
+            self.tag_user,
+        ]
+        with self.assertRaises(PermissionError):
+            logic.add_tag_users(
+                self.normal_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_users,
+            )
+
+    def test_remove_tag_users_as_admin(self):
+        """
+        Admin users are allowed to remove other users (including themselves)
+        from the users role associated with the tag.
+        """
+        old_users = [self.tag_user]
+        logic.add_tag_users(
+            self.site_admin_user,
+            self.public_tag_name,
+            self.namespace_name,
+            old_users,
+        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.remove_tag_users(
+                self.admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                old_users,
+            )
+        current_users = result.users.all()
+        for user in old_users:
+            self.assertNotIn(user, current_users)
+        mock_logger.msg.assert_called_once_with(
+            "Remove tag users.",
+            user=self.admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            users=[u.username for u in old_users],
+        )
+
+    def test_remove_tag_users_as_site_admin(self):
+        """
+        Site admin users are allowed to remove other users from the tag's
+        users role.
+        """
+        old_users = [self.tag_user]
+        logic.add_tag_users(
+            self.site_admin_user,
+            self.public_tag_name,
+            self.namespace_name,
+            old_users,
+        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.remove_tag_users(
+                self.site_admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                old_users,
+            )
+        current_users = result.users.all()
+        for user in old_users:
+            self.assertNotIn(user, current_users)
+        mock_logger.msg.assert_called_once_with(
+            "Remove tag users.",
+            user=self.site_admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            users=[u.username for u in old_users],
+        )
+
+    def test_remove_tag_users_as_normal_user(self):
+        """
+        Normal users may not remove other users from the tag's users role - a
+        PermissionError is raised as a result.
+        """
+        old_users = [
+            self.tag_user,
+        ]
+        with self.assertRaises(PermissionError):
+            logic.remove_tag_users(
+                self.normal_user,
+                self.public_tag_name,
+                self.namespace_name,
+                old_users,
+            )
+
+    def test_add_tag_readers_as_admin(self):
+        """
+        Admin users are allowed to add users to the readers role.
+        """
+        new_readers = [
+            self.normal_user,
+            self.tag_reader,
+        ]
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.add_tag_readers(
+                self.admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_readers,
+            )
+        current_readers = result.readers.all()
+        for user in new_readers:
+            self.assertIn(user, current_readers)
+        mock_logger.msg.assert_called_once_with(
+            "Add tag readers.",
+            user=self.admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            readers=[u.username for u in new_readers],
+        )
+
+    def test_add_tag_readers_as_site_admin(self):
+        """
+        Site admin users are allowed to add users to the readers role for the
+        tag.
+        """
+        new_readers = [
+            self.normal_user,
+            self.tag_reader,
+        ]
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.add_tag_readers(
+                self.site_admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_readers,
+            )
+        current_readers = result.readers.all()
+        for user in new_readers:
+            self.assertIn(user, current_readers)
+        mock_logger.msg.assert_called_once_with(
+            "Add tag readers.",
+            user=self.site_admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            readers=[u.username for u in new_readers],
+        )
+
+    def test_add_tag_readers_as_normal_user(self):
+        """
+        Normal users may not add other users to the readers role - a
+        PermissionError is raised as a result.
+        """
+        new_readers = [
+            self.normal_user,
+            self.tag_user,
+        ]
+        with self.assertRaises(PermissionError):
+            logic.add_tag_readers(
+                self.normal_user,
+                self.public_tag_name,
+                self.namespace_name,
+                new_readers,
+            )
+
+    def test_remove_tag_readers_as_admin(self):
+        """
+        Admin users are allowed to remove other users (including themselves)
+        from the readers role associated with the tag.
+        """
+        old_readers = [self.tag_reader]
+        logic.add_tag_readers(
+            self.site_admin_user,
+            self.public_tag_name,
+            self.namespace_name,
+            old_readers,
+        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.remove_tag_readers(
+                self.admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                old_readers,
+            )
+        current_readers = result.readers.all()
+        for user in old_readers:
+            self.assertNotIn(user, current_readers)
+        mock_logger.msg.assert_called_once_with(
+            "Remove tag readers.",
+            user=self.admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            readers=[u.username for u in old_readers],
+        )
+
+    def test_remove_tag_readers_as_site_admin(self):
+        """
+        Site admin users are allowed to remove other users from the tag's
+        readers role.
+        """
+        old_readers = [self.tag_reader]
+        logic.add_tag_readers(
+            self.site_admin_user,
+            self.public_tag_name,
+            self.namespace_name,
+            old_readers,
+        )
+        mock_logger = mock.MagicMock()
+        with mock.patch("datastore.logic.logger", mock_logger):
+            result = logic.remove_tag_readers(
+                self.site_admin_user,
+                self.public_tag_name,
+                self.namespace_name,
+                old_readers,
+            )
+        current_readers = result.readers.all()
+        for user in old_readers:
+            self.assertNotIn(user, current_readers)
+        mock_logger.msg.assert_called_once_with(
+            "Remove tag readers.",
+            user=self.site_admin_user.username,
+            tag=self.public_tag_name,
+            namespace=self.namespace_name,
+            readers=[u.username for u in old_readers],
+        )
+
+    def test_remove_tag_readers_as_normal_user(self):
+        """
+        Normal users may not remove other users from the tag's readers role - a
+        PermissionError is raised as a result.
+        """
+        old_readers = [
+            self.tag_reader,
+        ]
+        with self.assertRaises(PermissionError):
+            logic.remove_tag_readers(
+                self.normal_user,
+                self.public_tag_name,
+                self.namespace_name,
+                old_readers,
             )

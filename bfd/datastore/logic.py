@@ -34,7 +34,7 @@ def create_namespace(
     user: User,
     name: str,
     description: str,
-    admins: Union[Sequence, None] = None,
+    admins: Union[Sequence[User], None] = None,
 ) -> models.Namespace:
     """
     Create a new namespace with the referenced description and user objects as
@@ -157,7 +157,7 @@ def update_namespace_description(
 
 
 def add_namespace_admins(
-    user: User, name: str, admins: Sequence
+    user: User, name: str, admins: Sequence[User]
 ) -> models.Namespace:
     """
     Add the referenced user objects as administrators of the Namespace.
@@ -185,7 +185,7 @@ def add_namespace_admins(
 
 
 def remove_namespace_admins(
-    user: User, name: str, admins: Sequence
+    user: User, name: str, admins: Sequence[User]
 ) -> models.Namespace:
     """
     Remove the referenced user objects as administrators of the Namespace.
@@ -219,8 +219,8 @@ def create_tag(
     type_of: str,
     namespace: models.Namespace,
     private: bool,
-    users: Union[Sequence, None] = None,
-    readers: Union[Sequence, None] = None,
+    users: Union[Sequence[User], None] = None,
+    readers: Union[Sequence[User], None] = None,
 ) -> models.Tag:
     """
     Create a new tag with the referenced name, description, type and namespace.
@@ -272,6 +272,49 @@ def create_tag(
         raise PermissionError(
             _("User doesn't have permission to create a tag in the namespace.")
         )
+
+
+def get_tag(user: User, name: str, namespace: str) -> Dict:
+    """
+    Return a dictionary representation of the referenced tag as viewed by
+    the referenced user (with associated privileges).
+
+    Admin users of the parent namespace see all attributes of all aspects of
+    the tag. Regular users see a limited set of attributes on only those
+    aspects of the tag for which they have privileges to see.
+    """
+    n = models.Namespace.objects.get(name=namespace)
+    tag = models.Tag.objects.get(name=name, namespace=n)
+    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+        result = {
+            "name": tag.name,
+            "namespace": n.name,
+            "description": tag.description,
+            "path": tag.path,
+            "type_of": tag.get_type_of_display(),
+            "private": tag.private,
+            "users": [user.username for user in tag.users.all()],
+            "readers": [reader.username for reader in tag.readers.all()],
+            "created_by": tag.created_by.username,
+            "created_on": str(tag.created_on),
+            "updated_by": tag.updated_by.username,
+            "updated_on": str(tag.updated_on),
+        }
+    else:
+        if tag.is_reader(user):
+            result = {
+                "name": tag.name,
+                "namespace": n.name,
+                "description": tag.description,
+                "path": tag.path,
+                "type_of": tag.get_type_of_display(),
+                "private": tag.private,
+            }
+        else:
+            raise PermissionError(
+                _("User doesn't have permission to view the tag.")
+            )
+    return result
 
 
 def update_tag_description(
@@ -337,7 +380,7 @@ def set_tag_private(
 
 
 def add_tag_users(
-    user: User, name: str, namespace: str, users: Sequence
+    user: User, name: str, namespace: str, users: Sequence[User]
 ) -> models.Tag:
     """
     Add the referenced user objects to the tag's users list (who can both
@@ -368,7 +411,7 @@ def add_tag_users(
 
 
 def remove_tag_users(
-    user: User, name: str, namespace: str, users: Sequence
+    user: User, name: str, namespace: str, users: Sequence[User]
 ) -> models.Tag:
     """
     Remove the referenced user object from the tag's users list (who can both
@@ -399,7 +442,7 @@ def remove_tag_users(
 
 
 def add_tag_readers(
-    user: User, name: str, namespace: str, readers: Sequence
+    user: User, name: str, namespace: str, readers: Sequence[User]
 ) -> models.Tag:
     """
     Add the referenced user objects to the tag's readers list (who can read a
@@ -430,7 +473,7 @@ def add_tag_readers(
 
 
 def remove_tag_readers(
-    user: User, name: str, namespace: str, readers: Sequence
+    user: User, name: str, namespace: str, readers: Sequence[User]
 ) -> models.Tag:
     """
     Remove the referenced user objects from the tag's readers list (those who
@@ -458,6 +501,62 @@ def remove_tag_readers(
         raise PermissionError(
             _("User doesn't have permission to remove readers from the tag.")
         )
+
+
+def set_object_tag_value(
+    user: User, object_id: str, namespace: str, tag: str, value: HttpRequest
+):
+    """
+    Set the referenced namespace/tag on the specified object to the value
+    contained within the incoming HttpRequest. Assumes the privileges of the
+    referenced user.
+
+    The type of the value in the HttpRequest is infered (and checked against)
+    the type of the referenced tag.
+
+    If the operation failed, an exception will be raised.
+    """
+
+
+def set_object_tag_values(user: User, object_tag_values: Sequence[Dict]):
+    """
+    Set a number of unique namespace/tag values on each of the objects
+    referenced in the sequence. Assumes the privileges of the referenced user.
+
+    The object_tag_values should be of the form:
+
+    [
+        {
+            "object_id": "my object1",
+            "values": {
+                "namespace/tag": "a value to store",
+                "namespace2/tag2": 123,
+            },
+        },
+        {
+            "object_id": "my object2",
+            "values": {
+                "namespace3/ta3": "a unique value",
+                "namespace2/tag2": 456,
+            },
+        },
+        ... next object with other unique tag values...
+    ]
+
+    If the operation failed, an exception will be raised.
+    """
+
+
+def set_object_tag_values_by_query(
+    user: User, query: Sequence, tag_values: Sequence[Dict]
+):
+    """
+    Sets the same namespace/tag values to each of the objects matched by the
+    sequence of predicates in the query. Assumes the privileges of the
+    referenced user.
+
+    If the operation failed, an exception will be raised.
+    """
 
 
 def get_object_tags(user: User, object_id: str) -> Sequence[str]:
@@ -493,60 +592,4 @@ def get_object_query(user: User, query: str, tags: Sequence):
         "namespace2/tag2",
         ... etc...
     ]
-    """
-
-
-def set_object_tag_value(
-    user: User, object_id: str, namespace: str, tag: str, value: HttpRequest
-):
-    """
-    Set the referenced namespace/tag on the specified object to the value
-    contained within the incoming HttpRequest. Assumes the privileges of the
-    referenced user.
-
-    The type of the value in the HttpRequest is infered (and checked against)
-    the type of the referenced tag.
-
-    If the operation failed, an exception will be raised.
-    """
-
-
-def set_object_tag_values(user: User, object_tag_values: Sequence):
-    """
-    Set a number of unique namespace/tag values on each of the objects
-    referenced in the sequence. Assumes the privileges of the referenced user.
-
-    The object_tag_values should be of the form:
-
-    [
-        {
-            "object_id": "my object1",
-            values: {
-                "namespace/tag": "a value to store",
-                "namespace2/tag2": 123,
-            },
-        },
-        {
-            "object_id": "my object2",
-            values: {
-                "namespace3/ta3": "a unique value",
-                "namespace2/tag2": 456,
-            },
-        },
-        ... next object with other unique tag values...
-    ]
-
-    If the operation failed, an exception will be raised.
-    """
-
-
-def set_object_tag_values_by_query(
-    user: User, query: Sequence, tag_values: Sequence
-):
-    """
-    Sets the same namespace/tag values to each of the objects matched by the
-    sequence of predicates in the query. Assumes the privileges of the
-    referenced user.
-
-    If the operation failed, an exception will be raised.
     """
