@@ -17,7 +17,10 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import time
+from typing import Union, Dict, Type
 from . import utils
+from datetime import datetime, timedelta
+from django.core.files import uploadedfile  # type: ignore
 from django.apps import apps  # type: ignore
 from django.db import models  # type: ignore
 from django.contrib.auth.hashers import make_password  # type: ignore
@@ -57,7 +60,7 @@ class BFDUserManager(UserManager):
         Create and save a user with the given username, email, and password.
         """
         if not username:
-            raise ValueError("The given username must be set")
+            raise ValueError(_("The given username must be set"))
         email = self.normalize_email(email)
         # Lookup the real model class from the global app registry so this
         # manager method can be used in migrations. This is fine because
@@ -95,6 +98,64 @@ class User(AbstractUser):
     EMAIL_FIELD = "email"
 
     objects = BFDUserManager()
+
+
+class AbstractBaseValue(models.Model):
+    """
+    An abstract base class for all value classes. This will never become a
+    table in the database. However, the attributes and Meta class will be used
+    / inherited by the child classes when they are turned into database tables.
+    """
+
+    object_id = models.SlugField(
+        max_length=512,
+        allow_unicode=True,
+        help_text=_("The unique unicode identifier for the object."),
+    )
+    uuid = models.UUIDField(
+        db_index=True,
+        editable=False,
+        help_text=_("A UUID representing the namespace/tag path."),
+    )
+    namespace = models.ForeignKey(
+        "Namespace",
+        on_delete=models.CASCADE,
+        help_text=_("The namespace used to annotate data onto the object."),
+    )
+    tag = models.ForeignKey(
+        "Tag",
+        on_delete=models.CASCADE,
+        help_text=_("The tag used to annotate data onto the object."),
+    )
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        help_text=_("The user who most recently updated the value."),
+    )
+    updated_on = models.DateTimeField(
+        auto_now=True,
+        help_text=_("The date and time the value was last updated."),
+    )
+
+    @property
+    def path(self) -> str:
+        """
+        Return the human readable path for the value.
+        """
+        return f"{self.object_id}/{self.namespace.name}/{self.tag.name}"
+
+    @classmethod
+    def python_type(cls) -> type:
+        """
+        Return the Python type for the values the child class stores against
+        an object.
+
+        This must be overridden in the child class.
+        """
+        raise NotImplementedError
+
+    class Meta:
+        abstract = True
 
 
 class NamespaceManager(models.Manager):
@@ -191,7 +252,9 @@ class TagManager(models.Manager):
         Correctly check and create a new tag in the database.
         """
         if user not in namespace.admins.all():
-            raise PermissionError("User not an admin of the parent namespace.")
+            raise PermissionError(
+                _("User not an admin of the parent namespace.")
+            )
         uuid = utils.get_uuid(namespace.name, name)
         tag = self.create(
             name=name,
@@ -285,13 +348,6 @@ class Tag(models.Model):
         """
         return f"{self.namespace.name}/{self.name}"
 
-    def is_user(self, user: User) -> bool:
-        """
-        Return a boolean indication if the referenced user is able to write
-        values associated with this tag (the user can make use of this tag).
-        """
-        return self.users.filter(pk=user.pk).exists()
-
     def is_reader(self, user: User) -> bool:
         """
         Return a boolean indication if the referenced user is able to read
@@ -303,11 +359,63 @@ class Tag(models.Model):
         designated readers or who are able to write via this tag have
         visibility of it.
         """
+        if user.is_superuser:
+            return True
         return (
             (not self.private)
             or self.readers.filter(pk=user.pk).exists()
             or self.users.filter(pk=user.pk).exists()
+            or self.namespace.admins.filter(pk=user.pk).exists()
         )
+
+    def annotate(
+        self,
+        user: User,
+        object_id: str,
+        value: Union[
+            str,
+            bool,
+            int,
+            float,
+            datetime,
+            timedelta,
+            uploadedfile.UploadedFile,
+        ],
+    ) -> AbstractBaseValue:
+        """
+        Given a value, return a child instance of AbstractBaseValue that
+        represents the typed value annotated onto the referenced object by the
+        referenced user.
+
+        For example, if this tag is a "type_of" "string", then passing in
+        a valid string value will result in a StringValue instance being
+        returned. This instance represents a value annotated to the referenced
+        object via this tag. This instance IS NOT YET SAVED when it is
+        returned, since this allows it either to be added to a bulk update
+        transaction or saved as a single object into the database.
+        """
+        cls = VALUE_TYPE_MAP.get(self.type_of)
+        if cls:
+            if isinstance(value, cls.python_type()):
+                uuid = utils.get_uuid(self.namespace.name, self.name)
+                instance = cls(
+                    object_id=object_id,
+                    uuid=uuid,
+                    namespace=self.namespace,
+                    tag=self,
+                    updated_by=user,
+                    value=value,
+                )
+                if cls == BinaryValue and isinstance(
+                    value, uploadedfile.UploadedFile
+                ):
+                    instance.mime = value.content_type
+                instance.full_clean()
+                return instance
+            else:
+                raise TypeError(_("Wrong value type for tag: ") + self.path)
+        else:
+            raise ValueError(_("Unknown data type for tag: ") + self.path)
 
     class Meta:
         constraints = [
@@ -320,54 +428,6 @@ class Tag(models.Model):
         ]
 
 
-class AbstractBaseValue(models.Model):
-    """
-    An abstract base class for all value classes. This will never become a
-    table in the database. However, the attributes and Meta class will be used
-    / inherited by the child classes when they are turned into database tables.
-    """
-
-    object_id = models.SlugField(
-        max_length=512,
-        allow_unicode=True,
-        help_text=_("The unique unicode identifier for the object."),
-    )
-    uuid = models.UUIDField(
-        db_index=True,
-        editable=False,
-        help_text=_("A UUID representing the namespace/tag path."),
-    )
-    namespace = models.ForeignKey(
-        "Namespace",
-        on_delete=models.CASCADE,
-        help_text=_("The namespace used to annotate data onto the object."),
-    )
-    tag = models.ForeignKey(
-        "Tag",
-        on_delete=models.CASCADE,
-        help_text=_("The tag used to annotate data onto the object."),
-    )
-    last_updated_by = models.ForeignKey(
-        User,
-        on_delete=models.PROTECT,
-        help_text=_("The user who most recently updated the value."),
-    )
-    last_updated = models.DateTimeField(
-        auto_now=True,
-        help_text=_("The date and time the value was last updated."),
-    )
-
-    @property
-    def path(self) -> str:
-        """
-        Return the human readable path for the value.
-        """
-        return f"{self.object_id}/{self.namespace.name}/{self.tag.name}"
-
-    class Meta:
-        abstract = True
-
-
 class StringValue(AbstractBaseValue):
     """
     Represents string values tagged to objects.
@@ -378,6 +438,13 @@ class StringValue(AbstractBaseValue):
             "The string data annotated onto the object via the namespace/tag."
         )
     )
+
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A StringValue instance represents a Python string.
+        """
+        return str
 
     class Meta:
         constraints = [
@@ -397,6 +464,13 @@ class BooleanValue(AbstractBaseValue):
             "The boolean data annotated onto the object via the namespace/tag."
         )
     )
+
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A BooleanValue instance represents a Python bool.
+        """
+        return bool
 
     class Meta:
         constraints = [
@@ -418,6 +492,13 @@ class IntegerValue(AbstractBaseValue):
         )
     )
 
+    @classmethod
+    def python_type(self) -> type:
+        """
+        An IntegerValue instance represents a Python integer.
+        """
+        return int
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -436,6 +517,13 @@ class FloatValue(AbstractBaseValue):
             "The float data annotated onto the object via the namespace/tag."
         )
     )
+
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A FloatValue instance represents a Python float.
+        """
+        return float
 
     class Meta:
         constraints = [
@@ -457,6 +545,13 @@ class DateTimeValue(AbstractBaseValue):
         )
     )
 
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A DateTimeValue instance represents a Python datetime.
+        """
+        return datetime
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -476,6 +571,13 @@ class DurationValue(AbstractBaseValue):
             "The duration annotated onto the object via the namespace/tag."
         )
     )
+
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A DurationValue instance represents a Python str expressing duration.
+        """
+        return timedelta
 
     class Meta:
         constraints = [
@@ -517,6 +619,13 @@ class BinaryValue(AbstractBaseValue):
         help_text=_("The mime type defining the type of binary value stored."),
     )
 
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A BinaryValue instance represents a raw binary file saved to disk.
+        """
+        return uploadedfile.UploadedFile
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -539,6 +648,13 @@ class PointerValue(AbstractBaseValue):
         ),
     )
 
+    @classmethod
+    def python_type(self) -> type:
+        """
+        A PointerValue instance represents a URL pointing at something else.
+        """
+        return str
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -546,3 +662,16 @@ class PointerValue(AbstractBaseValue):
                 name="unique-pointer-val",
             )
         ]
+
+
+#: Maps the types of values onto children of the AbstractBaseValue class.
+VALUE_TYPE_MAP: Dict["str", Type[AbstractBaseValue]] = {
+    "s": StringValue,
+    "b": BooleanValue,
+    "i": IntegerValue,
+    "f": FloatValue,
+    "d": DateTimeValue,
+    "u": DurationValue,
+    "a": BinaryValue,
+    "p": PointerValue,
+}

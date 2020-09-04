@@ -544,12 +544,36 @@ class TagTestCase(TestCase):
         self.public_tag_description = "This is a public tag."
         self.public_tag_type_of = "s"
         self.public_tag = logic.create_tag(
-            user=self.site_admin_user,
+            user=self.admin_user,
             name=self.public_tag_name,
             description=self.public_tag_description,
             type_of=self.public_tag_type_of,
             namespace=self.test_namespace,
             private=False,
+        )
+        self.user_tag_name = "user_tag"
+        self.user_tag_description = "This is a user tag."
+        self.user_tag_type_of = "b"
+        self.user_tag = logic.create_tag(
+            user=self.admin_user,
+            name=self.user_tag_name,
+            description=self.user_tag_description,
+            type_of=self.user_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            users=[self.tag_user,],
+        )
+        self.reader_tag_name = "reader_tag"
+        self.reader_tag_description = "This is a reader tag."
+        self.reader_tag_type_of = "i"
+        self.reader_tag = logic.create_tag(
+            user=self.admin_user,
+            name=self.reader_tag_name,
+            description=self.reader_tag_description,
+            type_of=self.reader_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            readers=[self.tag_reader,],
         )
 
     def test_create_tag_as_site_admin(self):
@@ -1216,3 +1240,291 @@ class TagTestCase(TestCase):
                 self.namespace_name,
                 old_readers,
             )
+
+    def test_get_users_query_as_site_admin_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        Site admin users always match all tags.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_users_query(self.site_admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_users_query_as_admin_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        Users who are administrators of the parent namespace always match all
+        child tags.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_users_query(self.admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_users_query_as_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        A user can only see tags for which it has the "user" role.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_users_query(self.tag_user, tag_list)
+        self.assertEqual(1, len(result))
+        self.assertIn(self.user_tag, result)
+
+    def test_get_users_query_as_reader(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        If a user has a reader role associated with a private tag, it makes no
+        difference to their ability to be a user of that tag.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_users_query(self.tag_reader, tag_list)
+        self.assertEqual(0, len(result))
+
+    def test_get_users_query_as_normal_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        Users without the "users" role, don't get any matches.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_users_query(self.normal_user, tag_list)
+        self.assertEqual(0, len(result))
+
+    def test_get_readers_query_as_site_admin(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        A site admin can always use tags to read values.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_readers_query(self.site_admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_readers_query_as_admin_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        If a user has administrator role for the parent namespace, they can
+        always use tags to read values.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_readers_query(self.admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_readers_query_as_tag_reader_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        A user with readers role on a tag can read using that tag.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_readers_query(self.tag_reader, tag_list)
+        self.assertEqual(2, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_readers_query_as_tag_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        A user with users role on a tag can also read using that tag.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_readers_query(self.tag_user, tag_list)
+        self.assertEqual(2, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+
+    def test_get_readers_query_as_normal_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        Normal users with no particular role only see public tags with which to
+        read values.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = logic.get_readers_query(self.normal_user, tag_list)
+        self.assertEqual(1, len(result))
+        self.assertIn(self.public_tag, result)
+
+    def test_check_users_tags_as_admin_user(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to annotate values onto objects.
+
+        In this case, if a user is an admin of the parent namespace, the
+        response is always True.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertTrue(logic.check_users_tags(self.admin_user, tag_list))
+
+    def test_check_users_tags_as_site_admin(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to annotate values onto objects.
+
+        In this case, if a user is a site admin so the response is always True.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertTrue(logic.check_users_tags(self.site_admin_user, tag_list))
+
+    def test_check_users_tags_as_normal_user(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to annotate values onto objects.
+
+        In this case, if a user is a normal user and the tags are not in scope
+        with them, so the result will be False.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertFalse(logic.check_users_tags(self.normal_user, tag_list))
+
+    def test_check_users_tags_as_tag_user(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to annotate values onto objects.
+
+        In this case, if a user is a tag user the response is True. If the tag
+        collection contains a tag for which the user doesn't have the "user"
+        role, then the response if False.
+        """
+        tag_list = [
+            (self.namespace_name, self.user_tag_name),
+        ]
+        self.assertTrue(logic.check_users_tags(self.tag_user, tag_list))
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+        ]
+        self.assertFalse(logic.check_users_tags(self.tag_user, tag_list))
+
+    def test_check_users_tags_with_duplicate_tags(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to annotate values onto objects.
+
+        If there are duplicates of the same tag, this doesn't effect the
+        outcome.
+        """
+        tag_list = [
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.user_tag_name),
+        ]
+        self.assertTrue(logic.check_users_tags(self.tag_user, tag_list))
+
+    def test_check_users_tags_as_tag_reader(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to annotate values onto objects.
+
+        In this case, if a user is a tag reader the response is False because
+        reader's cannot use the tag to annotate (they can only read values
+        associated with it), unless, of course, they are also have the "users"
+        role..
+        """
+        tag_list = [
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertFalse(logic.check_users_tags(self.tag_reader, tag_list))
