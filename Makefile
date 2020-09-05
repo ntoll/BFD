@@ -40,6 +40,9 @@ flake8:
 mypy:
 	mypy --config-file=.mypy.ini
 
+validate:
+	cd bfd && python manage.py check
+
 test: clean
 	cd bfd && python manage.py test
 
@@ -51,7 +54,7 @@ tidy: clean
 	@echo "\nTidying code with black..."
 	black -l 79 bfd 
 
-check: clean tidy flake8 mypy coverage
+check: clean tidy flake8 mypy validate coverage
 
 docs: clean
 	$(MAKE) -C docs html
