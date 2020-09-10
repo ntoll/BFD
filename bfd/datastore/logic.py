@@ -646,8 +646,7 @@ def set_object_tag_values_by_query(
 ):
     """
     Sets the same namespace/tag values to each of the objects matched by the
-    sequence of predicates in the query. Assumes the privileges of the
-    referenced user.
+    BFQL query. Assumes the privileges of the referenced user.
 
     If the operation failed, an exception will be raised.
     """
@@ -674,11 +673,37 @@ def get_object_values(user: User, object_id: str, tags: Sequence):
     """
 
 
-def get_object_query(user: User, query: str, tags: Sequence):
+def get_object_tag_values_by_query(user: User, query: str, tags: Sequence):
     """
     Get the values associated with the referenced tags on objects that match
-    the propositions found in the referenced query. Only tags/values visible to
-    the referenced user will be returned.
+    the BFQL query. Only tags/values visible to the referenced user will be
+    returned.
+
+    The tags sequence should be of the form:
+    [
+        "namespace1/tag1",
+        "namespace2/tag2",
+        ... etc...
+    ]
+    """
+
+
+def delete_tags_from_object(user: User, object_id: str, tags: Sequence):
+    """
+    Delete referenced tag-values from the referenced object.
+
+    The tags sequence should be of the form:
+    [
+        "namespace1/tag1",
+        "namespace2/tag2",
+        ... etc...
+    ]
+    """
+
+
+def delete_object_tag_values_by_query(user: User, query: str, tags: Sequence):
+    """
+    Delete referenced tag-values from objects that match the BFQL query.
 
     The tags sequence should be of the form:
     [

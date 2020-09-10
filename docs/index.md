@@ -76,6 +76,7 @@ need to reheat the ocean with my own plastic kettle. 🤨
 
    contributing.md
    code_of_conduct.md
+   query.md
    architecture.md
    license.md
    authors.md

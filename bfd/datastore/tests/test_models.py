@@ -266,15 +266,88 @@ class TagTestCase(TestCase):
         If the tag is used to annotate a value of the wrong type, an error is
         raised.
         """
-        name = "my_tag"
         description = "This is a test tag."
-        type_of = models.VALID_DATA_TYPES[0][0]
         private = False
-        tag = models.Tag.objects.create_tag(
-            name, description, type_of, self.namespace, private, self.user
+        string_tag = models.Tag.objects.create_tag(
+            "string",
+            description,
+            models.VALID_DATA_TYPES[0][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        bool_tag = models.Tag.objects.create_tag(
+            "bool",
+            description,
+            models.VALID_DATA_TYPES[1][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        int_tag = models.Tag.objects.create_tag(
+            "int",
+            description,
+            models.VALID_DATA_TYPES[2][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        float_tag = models.Tag.objects.create_tag(
+            "float",
+            description,
+            models.VALID_DATA_TYPES[3][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        datetime_tag = models.Tag.objects.create_tag(
+            "datetime",
+            description,
+            models.VALID_DATA_TYPES[4][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        duration_tag = models.Tag.objects.create_tag(
+            "duration",
+            description,
+            models.VALID_DATA_TYPES[5][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        binary_tag = models.Tag.objects.create_tag(
+            "binary",
+            description,
+            models.VALID_DATA_TYPES[6][0],
+            self.namespace,
+            private,
+            self.user,
+        )
+        pointer_tag = models.Tag.objects.create_tag(
+            "pointer",
+            description,
+            models.VALID_DATA_TYPES[7][0],
+            self.namespace,
+            private,
+            self.user,
         )
         with self.assertRaises(TypeError):
-            tag.annotate(self.user, "an-arbitrary-object", 123)
+            string_tag.annotate(self.user, "an-arbitrary-object", 123)
+        with self.assertRaises(TypeError):
+            bool_tag.annotate(self.user, "an-arbitrary-object", 123)
+        with self.assertRaises(TypeError):
+            int_tag.annotate(self.user, "an-arbitrary-object", 1.234)
+        with self.assertRaises(TypeError):
+            float_tag.annotate(self.user, "an-arbitrary-object", 123)
+        with self.assertRaises(TypeError):
+            datetime_tag.annotate(self.user, "an-arbitrary-object", 123)
+        with self.assertRaises(TypeError):
+            duration_tag.annotate(self.user, "an-arbitrary-object", 123)
+        with self.assertRaises(TypeError):
+            binary_tag.annotate(self.user, "an-arbitrary-object", 123)
+        with self.assertRaises(TypeError):
+            pointer_tag.annotate(self.user, "an-arbitrary-object", 123)
 
     def test_annotate_unknown_type(self):
         """

@@ -1520,11 +1520,128 @@ class TagTestCase(TestCase):
         referenced tags to annotate values onto objects.
 
         In this case, if a user is a tag reader the response is False because
-        reader's cannot use the tag to annotate (they can only read values
+        readers cannot use the tag to annotate (they can only read values
         associated with it), unless, of course, they are also have the "users"
-        role..
+        role.
         """
         tag_list = [
             (self.namespace_name, self.reader_tag_name),
         ]
         self.assertFalse(logic.check_users_tags(self.tag_reader, tag_list))
+
+    def test_check_readers_tags_as_admin_user(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        In this case, if a user is an admin of the parent namespace, the
+        response is always True.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertTrue(logic.check_readers_tags(self.admin_user, tag_list))
+
+    def test_check_readers_tags_as_site_admin(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        In this case, if a user is a site admin so the response is always True.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertTrue(
+            logic.check_readers_tags(self.site_admin_user, tag_list)
+        )
+
+    def test_check_readers_tags_as_normal_user(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        In this case, if a user is a normal user and the tags are not in scope
+        with them, so the result will be False.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertFalse(logic.check_readers_tags(self.normal_user, tag_list))
+
+    def test_check_readers_tags_as_normal_user_public_tag(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        In this case, if a user is a normal user and the tags are all public
+        the result will be True.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+        ]
+        self.assertTrue(logic.check_readers_tags(self.normal_user, tag_list))
+
+    def test_check_readers_tags_as_tag_reader(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        In this case, if a user is a tag reader the response is True. If the
+        tag collection contains a tag for which the user doesn't have the
+        "reader" role, then the response if False.
+        """
+        tag_list = [
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_list))
+        tag_list = [
+            (self.namespace_name, self.reader_tag_name),
+            (self.namespace_name, self.user_tag_name),
+        ]
+        self.assertFalse(logic.check_readers_tags(self.tag_reader, tag_list))
+
+    def test_check_readers_tags_with_duplicate_tags(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        If there are duplicates of the same tag, this doesn't effect the
+        outcome.
+        """
+        tag_list = [
+            (self.namespace_name, self.reader_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_list))
+
+    def test_check_readers_tags_as_tag_user(self):
+        """
+        Given a user and a collection of namespace/tag tuples, ensure the
+        expected True value is returned if the user has permission to use the
+        referenced tags to read values from objects.
+
+        In this case, if a user is a tag user the response is True because
+        users can always read tags for which they have permission to annotate
+        data.
+        """
+        tag_list = [
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        self.assertFalse(logic.check_readers_tags(self.tag_user, tag_list))
