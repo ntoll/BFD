@@ -31,3 +31,4 @@ Thank you.<br/>
 ---
 
 From [here](https://github.com/ntoll/being_together).
+Here's [why](https://ntoll.org/article/on-being-together/).
