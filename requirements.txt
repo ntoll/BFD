@@ -9,6 +9,7 @@ drf_yasg
 flake8
 mypy
 pycodestyle
+python-dateutil
 recommonmark==0.6.0
 sly
 sphinx==3.0.3

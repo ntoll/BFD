@@ -31,15 +31,15 @@ The type of the tag makes no difference to these sorts of query.
   `and` operator.
 * Conjugation (and): `library/summary matches "whales" and library/pages < 100`
   will return all objects that have the `library/summary` and `library/pages`
-  tags and whose values match `"whales"` and `100` respectively.
+  tags and whose values match `"whales"` and `less than 100` respectively.
 * Disjunction (or):
   `library/summary matches "whales" or library/summary matches "dolphins"`
   will return all objects that have the `library/summary` tag and whose value
   matches either `"whales"` or `"dolphins"`.
 * Grouping: `has library/title and (nicholas/rating > 5 or terry/rating > 7)`
   returns all objects where the queries within the parenthesis are evaluated
-  together before being conjugated with the results of outer query to produce
-  the final result set of object_ids. 
+  together before being conjugated with the results of the outer query to
+  produce the final result set of object_ids. 
 
 ## String Based Tags
 
@@ -78,11 +78,16 @@ Integer and float values can be used with each other for comparison.
 
 Integers are written as a sequence of digits: `1234`
 Floats are written as a sequence of digits with a decimal point: `1.234`
-Datetimes are written precisely to the second: `2020/09/24 15:30:30`
-(`YYYY/MM/DD HH:MM:SS`) or with just the date: `2020/09/24` (`YYYY/MM/DD`).
-Durations are expressed as exact numbers of `days` or `seconds`: `12 days` or
-`360 seconds` (to aid reading, `day`/`days` and `second`/`seconds` are
-synonymous in BFQL).
+Datetimes are written precisely to the second: `2020-09-24T15:30:30`
+(`YYYY-MM/-DTHH:MM:SS` with the `T` separating the date and time portions for
+readability reasons) or with just the date: `2020-09-24` (`YYYY-MM-DD`).
+Timezone offset may also be appended `2020-09-24T15:30:30-08:00`
+(``YYYY-MM/-DTHH:MM:SS[+|-]HH:MM`). These patterns follow the recommendations
+in the W3C's [Date and Time Formats Note](https://www.w3.org/TR/NOTE-datetime).
+Durations are expressed as exact numbers of days (denoted by an integer
+followed by `d`) or seconds (an integer followed by `s`): `12d` or
+`360s`. Other durations should be constructed by multiplying days or seconds to
+the right value.
 
 * Equal: `game/score = 1000` will return all objects with the `game/score` tag
   whose value is exactly the integer 1000.
@@ -92,10 +97,10 @@ synonymous in BFQL).
   `gym_member/weight_kg` tag whose value is greater than the float 55.5.
 * Less than: `gym_member/target_kg < 95.5` will return all objects with the
   `gym_member/target_kg` tag whose value is less than the float 99.5.
-* Greater than or equal to: `employee/dob >= 1973/08/19` will return all
+* Greater than or equal to: `employee/dob >= 1973-08-19` will return all
   objects with the `employee/dob` tag whose value is greater than or equal to
-  the date `1973/08/19`.
-* Less than or equal to: `employee/service <= 365 days` will return all objects
+  the date `1973-08-19` (19th August, 1973).
+* Less than or equal to: `employee/service <= 365days` will return all objects
   with the `employee/service` tag whose value is less than or equal to a
   duration of 365 days.
 
