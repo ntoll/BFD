@@ -79,10 +79,10 @@ Integer and float values can be used with each other for comparison.
 Integers are written as a sequence of digits: `1234`
 Floats are written as a sequence of digits with a decimal point: `1.234`
 Datetimes are written precisely to the second: `2020-09-24T15:30:30`
-(`YYYY-MM/-DTHH:MM:SS` with the `T` separating the date and time portions for
+(`YYYY-MM-DDTHH:MM:SS` with the `T` separating the date and time portions for
 readability reasons) or with just the date: `2020-09-24` (`YYYY-MM-DD`).
 Timezone offset may also be appended `2020-09-24T15:30:30-08:00`
-(`YYYY-MM/-DTHH:MM:SS[+|-]HH:MM`). These patterns follow the recommendations
+(`YYYY-MM-DDTHH:MM:SS[+|-]HH:MM`). These patterns follow the recommendations
 in the W3C's [Date and Time Formats Note](https://www.w3.org/TR/NOTE-datetime).
 Durations are expressed as exact numbers of days (denoted by an integer
 followed by `d`) or seconds (an integer followed by `s`): `12d` or
