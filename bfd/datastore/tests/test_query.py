@@ -287,3 +287,8 @@ class QueryLexerTestCase(TestCase):
         self.assertEqual(tokens[0].type, "TAGPATH")
         self.assertEqual(tokens[1].type, "NE")
         self.assertEqual(tokens[2].type, "FLOAT")
+        query = "gallery/image is image/jpeg"  # :-)
+        tokens = list(self.lexer.tokenize(query))
+        self.assertEqual(tokens[0].type, "TAGPATH")
+        self.assertEqual(tokens[1].type, "IS")
+        self.assertEqual(tokens[2].type, "TAGPATH")

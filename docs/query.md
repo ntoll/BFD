@@ -7,7 +7,7 @@ keywords come from English natural language.
 
 BFQL is used in three ways, to match:
 
-1. objects whose specified tag-values are returned,
+1. objects where a list of specified tag-values are returned,
 2. objects that require a bulk update of specific tag-values, or
 3. objects from which specified tags should be deleted.
 
@@ -100,7 +100,7 @@ the right value.
 * Greater than or equal to: `employee/dob >= 1973-08-19` will return all
   objects with the `employee/dob` tag whose value is greater than or equal to
   the date `1973-08-19` (19th August, 1973).
-* Less than or equal to: `employee/service <= 365days` will return all objects
+* Less than or equal to: `employee/service <= 365d` will return all objects
   with the `employee/service` tag whose value is less than or equal to a
   duration of 365 days.
 
