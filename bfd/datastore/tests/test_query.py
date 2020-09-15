@@ -107,19 +107,24 @@ class QueryLexerTestCase(TestCase):
         self.assertEqual(token.type, "FLOAT")
         self.assertEqual(token.value, 1.234e4)
 
-    def test_tagpath(self):
+    def test_path(self):
         """
-        A tag path is: unicode-namespace-slug/unicode-tag-slug
+        A path is: unicode-namespace-slug/unicode-tag-slug
 
-        Matched tag paths are added to the lexer's tagpaths set for later
-        permissions processing.
+        A path can also encode a MIME type (see RFC6836 and RFC4855).
         """
+        # Tag path
         example = "namespace-汉字-slug/tag_汉字_slug"
         result = list(self.lexer.tokenize(example))
         token = result[0]
-        self.assertEqual(token.type, "TAGPATH")
+        self.assertEqual(token.type, "PATH")
         self.assertEqual(token.value, example)
-        self.assertIn(example, self.lexer.tagpaths)
+        # MIME type
+        example = "image/jpeg"
+        result = list(self.lexer.tokenize(example))
+        token = result[0]
+        self.assertEqual(token.type, "PATH")
+        self.assertEqual(token.value, example)
 
     def test_duration(self):
         """
@@ -257,38 +262,38 @@ class QueryLexerTestCase(TestCase):
         )
         tokens = list(self.lexer.tokenize(query))
         self.assertEqual(tokens[0].type, "HAS")
-        self.assertEqual(tokens[1].type, "TAGPATH")
+        self.assertEqual(tokens[1].type, "PATH")
         self.assertEqual(tokens[2].type, "AND")
         self.assertEqual(tokens[3].type, "(")
-        self.assertEqual(tokens[4].type, "TAGPATH")
+        self.assertEqual(tokens[4].type, "PATH")
         self.assertEqual(tokens[5].type, "GE")
         self.assertEqual(tokens[6].type, "INT")
         self.assertEqual(tokens[7].type, "OR")
-        self.assertEqual(tokens[8].type, "TAGPATH")
+        self.assertEqual(tokens[8].type, "PATH")
         self.assertEqual(tokens[9].type, "IS")
         self.assertEqual(tokens[10].type, "FALSE")
         self.assertEqual(tokens[11].type, ")")
         query = "library/due=2026-08-19 or library/duration > 100d"
         tokens = list(self.lexer.tokenize(query))
-        self.assertEqual(tokens[0].type, "TAGPATH")
+        self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "EQ")
         self.assertEqual(tokens[2].type, "DATETIME")
         self.assertEqual(tokens[3].type, "OR")
-        self.assertEqual(tokens[4].type, "TAGPATH")
+        self.assertEqual(tokens[4].type, "PATH")
         self.assertEqual(tokens[5].type, "GT")
         self.assertEqual(tokens[6].type, "DURATION")
         query = 'zoo/animal imatches "Elephant"'
         tokens = list(self.lexer.tokenize(query))
-        self.assertEqual(tokens[0].type, "TAGPATH")
+        self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "IMATCHES")
         self.assertEqual(tokens[2].type, "STRING")
         query = "maths/pi != 3.141"  # :-)
         tokens = list(self.lexer.tokenize(query))
-        self.assertEqual(tokens[0].type, "TAGPATH")
+        self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "NE")
         self.assertEqual(tokens[2].type, "FLOAT")
         query = "gallery/image is image/jpeg"  # :-)
         tokens = list(self.lexer.tokenize(query))
-        self.assertEqual(tokens[0].type, "TAGPATH")
+        self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "IS")
-        self.assertEqual(tokens[2].type, "TAGPATH")
+        self.assertEqual(tokens[2].type, "PATH")

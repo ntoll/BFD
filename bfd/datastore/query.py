@@ -28,20 +28,28 @@ from dateutil.parser import parse as datetime_parser  # type: ignore
 logger = structlog.get_logger()
 
 
+#: Valid registry names for MIME types. See: RFC6836, RFC4855.
+MIME_REGISTRIES = [
+    "application",
+    "audio",
+    "font",
+    "example",
+    "image",
+    "message",
+    "model",
+    "multipart",
+    "text",
+    "video",
+]
+
+
 class QueryLexer(Lexer):
     """
     A simple Sly based lexer for the query language.
     """
 
-    def __init__(self):
-        """
-        Ensure a set of unique tag paths to check for read permissions.
-        """
-        super().__init__()
-        self.tagpaths = set()
-
     tokens = {
-        TAGPATH,  # type: ignore # noqa
+        PATH,  # type: ignore # noqa
         STRING,  # type: ignore # noqa
         TRUE,  # type: ignore # noqa
         FALSE,  # type: ignore # noqa
@@ -95,18 +103,10 @@ class QueryLexer(Lexer):
         t.value = float(t.value)
         return t
 
-    @_(r"[-\w]+/[-\w]+")  # type: ignore
-    def TAGPATH(self, t):
-        """
-        A namespace/tag path.
-        """
-        self.tagpaths.add(t.value)
-        return t
-
     @_(r"[\d]+[s|d]{1}")  # type: ignore
     def DURATION(self, t):
         """
-        A duration, desolves to a Python timedelta.
+        A duration, resolves to a Python timedelta.
         """
         amount = int(t.value[:-1])
         if t.value.endswith("d"):
@@ -120,7 +120,7 @@ class QueryLexer(Lexer):
     @_(r"-?\d+")  # type: ignore
     def INT(self, t):
         """
-        Integers (whole numbers).
+        Integers.
         """
         t.value = int(t.value)
         return t
@@ -153,6 +153,7 @@ class QueryLexer(Lexer):
         "(",
         ")",
     }
+    PATH = r"[-\w]+/[-\w]+"
     HAS = r"(?i)has"
     MISSING = r"(?i)missing"
     AND = r"(?i)and"
@@ -179,9 +180,18 @@ class QueryLexer(Lexer):
 #     """
 #
 #     tokens = QueryLexer.tokens
+#
+#     # Grammar rules and actions.
 
 
 def parse(query: str) -> List[str]:
     """
     Parse the query string and return a list of matching object_ids.
     """
+    # Tokenize.
+    # lexer = QueryLexer()
+    # tokens = lexer.tokenize(str)
+    # tags = lexer.tagpaths
+    # Check tag read permissions.
+    # Parse.
+    # Extract matching object_ids.
