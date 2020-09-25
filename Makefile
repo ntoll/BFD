@@ -22,6 +22,7 @@ clean:
 	rm -rf .eggs
 	rm -rf build
 	rm -rf dist
+	rm -rf bfd/test-object-*
 	find . \( -name '*.py[co]' -o -name dropin.cache \) -delete
 	find . \( -name '*.bak' -o -name dropin.cache \) -delete
 	find . \( -name '*.tgz' -o -name dropin.cache \) -delete

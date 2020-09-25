@@ -17,7 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import time
-from typing import Union, Dict, Type
+from typing import Union, Dict, Type, Set
 from . import utils
 from datetime import datetime, timedelta
 from django.core.files import uploadedfile  # type: ignore
@@ -416,6 +416,24 @@ class Tag(models.Model):
                 raise TypeError(_("Wrong value type for tag: ") + self.path)
         else:
             raise ValueError(_("Unknown data type for tag: ") + self.path)
+
+    def filter(
+        self, query: models.Q, exclude: Union[None, models.Q] = None,
+    ) -> Set[str]:
+        """
+        Returns a set of object_ids of objects that match the given query and
+        optional exclusion for values annotated with this tag. This query is
+        evaluated for the referenced user. If this user doesn't have permission
+        to read the value of this tag, a PermissionError exception is raised.
+        """
+        cls = VALUE_TYPE_MAP[self.type_of]
+        set_name = cls.__name__.lower() + "_set"
+        db_query = getattr(self, set_name)
+        if exclude:
+            result = db_query.filter(query).exclude(exclude)
+        else:
+            result = db_query.filter(query)
+        return {match.object_id for match in result}
 
     class Meta:
         constraints = [

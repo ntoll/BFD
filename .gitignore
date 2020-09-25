@@ -87,3 +87,6 @@ target/
 # Django
 *.sqlite3
 .envrc
+
+# BFD test assets
+bfd/test-object-*

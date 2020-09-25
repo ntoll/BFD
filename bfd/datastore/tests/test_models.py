@@ -16,13 +16,15 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
+from io import BytesIO
 from unittest import mock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from django.test import TestCase
 from datastore import models
 from datastore import utils
 from django.core.exceptions import ValidationError
 from django.core.files import uploadedfile
+from django.db.models import Q
 from datastore.utils import get_uuid
 
 
@@ -548,6 +550,284 @@ class TagTestCase(TestCase):
         self.assertEqual(annotation.updated_by, self.user)
         self.assertEqual(annotation.value, val)
         self.assertIsInstance(annotation, models.PointerValue)
+
+    # The following tests ensure unintentional changes of behaviour don't go
+    # unnoticed. But why Nicholas, why..? Tests don't simply prove correctness,
+    # they help us make changes with confidence and deviations from expected
+    # behaviour are an aspect of this. To change such expected behaviour you'd
+    # need to "mean it enough" to also change these tests. :-) (i.e. You know
+    # what you're doing, rather than doing it by accident.)
+
+    def test_filter_string_values(self):
+        """
+        Given a tag that has been used to annotate string values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[0][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        annotation1 = tag.annotate(self.user, "test-object-1", "Hello world!")
+        annotation2 = tag.annotate(self.user, "test-object-2", "hello")
+        annotation1.save()
+        annotation2.save()
+        result1 = tag.filter(Q(value__contains="world"))
+        self.assertEqual(result1, {"test-object-1",})
+        result2 = tag.filter(Q(value__icontains="hello"))
+        self.assertEqual(result2, {"test-object-1", "test-object-2",})
+        result3 = tag.filter(Q(value__exact="hello"))
+        self.assertEqual(result3, {"test-object-2",})
+        result4 = tag.filter(Q(value__iexact="HELLO"))
+        self.assertEqual(result4, {"test-object-2",})
+        result5 = tag.filter(
+            Q(value__icontains="hello"), exclude=Q(value__contains="world")
+        )
+        self.assertEqual(result5, {"test-object-2",})
+
+    def test_filter_boolean_values(self):
+        """
+        Given a tag that has been used to annotate boolean values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[1][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        annotation1 = tag.annotate(self.user, "test-object-1", True)
+        annotation2 = tag.annotate(self.user, "test-object-2", False)
+        annotation1.save()
+        annotation2.save()
+        result1 = tag.filter(Q(value=True))
+        self.assertEqual(result1, {"test-object-1",})
+        result2 = tag.filter(Q(value=False))
+        self.assertEqual(result2, {"test-object-2",})
+
+    def test_filter_integer_values(self):
+        """
+        Given a tag that has been used to annotate integer values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[2][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        annotation1 = tag.annotate(self.user, "test-object-1", -123)
+        annotation2 = tag.annotate(self.user, "test-object-2", 0)
+        annotation3 = tag.annotate(self.user, "test-object-3", 123)
+        annotation1.save()
+        annotation2.save()
+        annotation3.save()
+        # Compares integers.
+        result0 = tag.filter(Q(value__lt=0))
+        self.assertEqual(result0, {"test-object-1",})
+        result1 = tag.filter(Q(value__lte=0))
+        self.assertEqual(result1, {"test-object-1", "test-object-2",})
+        result2 = tag.filter(Q(value__exact=0))
+        self.assertEqual(result2, {"test-object-2",})
+        result3 = tag.filter(Q(value__gt=0))
+        self.assertEqual(result3, {"test-object-3",})
+        result4 = tag.filter(Q(value__gte=0))
+        self.assertEqual(result4, {"test-object-2", "test-object-3",})
+        # Should work with floats too.
+        result5 = tag.filter(Q(value__gt=1.0))
+        self.assertEqual(result5, {"test-object-3",})
+        result6 = tag.filter(Q(value__exact=0.0))
+        self.assertEqual(result6, {"test-object-2",})
+
+    def test_filter_float_values(self):
+        """
+        Given a tag that has been used to annotate float values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[3][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        annotation1 = tag.annotate(self.user, "test-object-1", -123.456)
+        annotation2 = tag.annotate(self.user, "test-object-2", 0.0)
+        annotation3 = tag.annotate(self.user, "test-object-3", 123.456)
+        annotation1.save()
+        annotation2.save()
+        annotation3.save()
+        # Compares floats.
+        result0 = tag.filter(Q(value__lt=0.0))
+        self.assertEqual(result0, {"test-object-1",})
+        result1 = tag.filter(Q(value__lte=0.0))
+        self.assertEqual(result1, {"test-object-1", "test-object-2",})
+        result2 = tag.filter(Q(value__exact=0.0))
+        self.assertEqual(result2, {"test-object-2",})
+        result3 = tag.filter(Q(value__gt=0.0))
+        self.assertEqual(result3, {"test-object-3",})
+        result4 = tag.filter(Q(value__gte=0.0))
+        self.assertEqual(result4, {"test-object-2", "test-object-3",})
+        # Should work with integers too.
+        result5 = tag.filter(Q(value__gt=1))
+        self.assertEqual(result5, {"test-object-3",})
+        result6 = tag.filter(Q(value__exact=0))
+        self.assertEqual(result6, {"test-object-2",})
+
+    def test_filter_datetime_values(self):
+        """
+        Given a tag that has been used to annotate datetime values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[4][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        date1 = datetime(2019, 8, 19, 23, 30, 0, tzinfo=timezone.utc)
+        date2 = datetime(2020, 8, 19, 11, 30, 30, tzinfo=timezone.utc)
+        date3 = datetime(2021, 8, 19, 17, 30, 57, tzinfo=timezone.utc)
+        annotation1 = tag.annotate(self.user, "test-object-1", date1)
+        annotation2 = tag.annotate(self.user, "test-object-2", date2)
+        annotation3 = tag.annotate(self.user, "test-object-3", date3)
+        annotation1.save()
+        annotation2.save()
+        annotation3.save()
+        # Compare dates.
+        test_date = datetime(2020, 9, 25, tzinfo=timezone.utc)
+        result0 = tag.filter(Q(value__lt=test_date))
+        self.assertEqual(result0, {"test-object-1", "test-object-2"})
+        result1 = tag.filter(Q(value__lte=date2))
+        self.assertEqual(result1, {"test-object-1", "test-object-2"})
+        result2 = tag.filter(Q(value__exact=date1))
+        self.assertEqual(result2, {"test-object-1",})
+        result3 = tag.filter(Q(value__gt=test_date))
+        self.assertEqual(result3, {"test-object-3",})
+        result4 = tag.filter(Q(value__exact=test_date))
+        self.assertEqual(result4, set())
+        result5 = tag.filter(Q(value__gte=date2))
+        self.assertEqual(result5, {"test-object-2", "test-object-3",})
+
+    def test_filter_duration_values(self):
+        """
+        Given a tag that has been used to annotate duration values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[5][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        annotation1 = tag.annotate(
+            self.user, "test-object-1", timedelta(days=1)
+        )
+        annotation2 = tag.annotate(
+            self.user, "test-object-2", timedelta(days=2)
+        )
+        annotation3 = tag.annotate(
+            self.user, "test-object-3", timedelta(days=3)
+        )
+        annotation1.save()
+        annotation2.save()
+        annotation3.save()
+        result0 = tag.filter(Q(value__lt=timedelta(days=2)))
+        self.assertEqual(result0, {"test-object-1",})
+        result1 = tag.filter(Q(value__lte=timedelta(days=2)))
+        self.assertEqual(result1, {"test-object-1", "test-object-2"})
+        result2 = tag.filter(Q(value__exact=timedelta(days=1)))
+        self.assertEqual(result2, {"test-object-1",})
+        result3 = tag.filter(Q(value__gt=timedelta(days=2)))
+        self.assertEqual(result3, {"test-object-3",})
+        result4 = tag.filter(Q(value__exact=timedelta(days=4)))
+        self.assertEqual(result4, set())
+        result5 = tag.filter(Q(value__gte=timedelta(days=2)))
+        self.assertEqual(result5, {"test-object-2", "test-object-3",})
+
+    def test_filter_binary_values(self):
+        """
+        Given a tag that has been used to annotate binary values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[6][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        val1 = uploadedfile.InMemoryUploadedFile(
+            file=BytesIO(b"hello"),
+            field_name="",
+            name="file.txt",
+            content_type="txt/txt",
+            size=5,
+            charset="utf-8",
+        )
+        val2 = uploadedfile.InMemoryUploadedFile(
+            file=BytesIO(b"Image"),
+            field_name="",
+            name="file2.png",
+            content_type="image/png",
+            size=5,
+            charset="utf-8",
+        )
+        annotation1 = tag.annotate(self.user, "test-object-1", val1)
+        annotation2 = tag.annotate(self.user, "test-object-2", val2)
+        annotation1.save()
+        annotation2.save()
+        result0 = tag.filter(Q(mime__exact="txt/txt"))
+        self.assertEquals(result0, {"test-object-1",})
+        result1 = tag.filter(Q(mime__exact="txt/json"))
+        self.assertEquals(result1, set())
+
+    def test_filter_pointer_values(self):
+        """
+        Given a tag that has been used to annotate pointer values to objects,
+        ensure the expected object_ids, contained in a Python set, are
+        returned.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[7][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        annotation1 = tag.annotate(
+            self.user, "test-object-1", "https://camerata.io/bfd"
+        )
+        annotation2 = tag.annotate(
+            self.user, "test-object-2", "https://ntoll.org/cv"
+        )
+        annotation1.save()
+        annotation2.save()
+        result1 = tag.filter(Q(value__contains="camerata"))
+        self.assertEqual(result1, {"test-object-1",})
+        result2 = tag.filter(Q(value__icontains="Camerata"))
+        self.assertEqual(result2, {"test-object-1",})
+        result3 = tag.filter(Q(value__exact="https://ntoll.org/cv"))
+        self.assertEqual(result3, {"test-object-2",})
+        result4 = tag.filter(Q(value__iexact="https://ntoll.org/CV"))
+        self.assertEqual(result4, {"test-object-2",})
+        result5 = tag.filter(
+            Q(value__icontains="https://"), exclude=Q(value__contains=".io")
+        )
+        self.assertEqual(result5, {"test-object-2",})
 
 
 class AbstractBaseValueTestCase(TestCase):

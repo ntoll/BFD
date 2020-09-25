@@ -49,10 +49,11 @@ to something elsewhere on the internet).
 
 When writing strings, enclose them within double quotes.
 
-* Equality: `library/title = "Moby Dick"` will return all objects with the
+* Equality: `library/title is "Moby Dick"` will return all objects with the
   `library/title` tag whose value is exactly `"Moby Dick"`.
-* Inequality: `library/author != "Terry Jones"` will return all objects with
-  the `library/author` tag whose value is not `"Terry Jones"`.
+* Case insensitive equality: `library/author iis "moby dick"` will return all
+  objects with the `library/title` tag whose value is a case insensitive match
+  for `"moby dick"`.
 * Text matching: `library/summary matches "whales"` will return all objects
   with the `library/summary` tag whose value contains a case-sensitive match
   of the word `"whales"`.
@@ -90,19 +91,21 @@ followed by `d`) or seconds (an integer followed by `s`): `12d` or
 the right value.
 
 * Equal: `game/score = 1000` will return all objects with the `game/score` tag
-  whose value is exactly the integer 1000.
+  whose value is exactly the integer `1000`.
 * Not equal: `game/score != 1000` will return all objects with the `game/score`
-  tag whose value is NOT equal to the integer 1000.
-* Greater than: `gym_member/weight_kg > 55.5` will return all objects with the
-  `gym_member/weight_kg` tag whose value is greater than the float 55.5.
-* Less than: `gym_member/target_kg < 95.5` will return all objects with the
-  `gym_member/target_kg` tag whose value is less than the float 99.5.
+  tag whose value is NOT equal to the integer `1000`.
+* Greater than: `bookshop/delivery_weight_kg > 1.2` will return all objects
+  with the `bookshop/delivery_weight_kg` tag whose value is greater than the
+  float `1.2`.
+* Less than: `bookshop/delivery_weight_kg < 1.5` will return all objects with
+  the `bookshop/delivery_weight_kg` tag whose value is less than the float
+  `1.5`.
 * Greater than or equal to: `employee/dob >= 1973-08-19` will return all
   objects with the `employee/dob` tag whose value is greater than or equal to
   the date `1973-08-19` (19th August, 1973).
-* Less than or equal to: `employee/service <= 365d` will return all objects
-  with the `employee/service` tag whose value is less than or equal to a
-  duration of 365 days.
+* Less than or equal to: `employee/probation_period <= 365d` will return all
+  objects with the `employee/probation_period` tag whose value is less than or
+  equal to a duration of 365 days (`365d`).
 
 ## Binary Tags
 
@@ -110,8 +113,9 @@ Binary tags are, by their nature opaque (they store arbitrary binary
 information). However they do automatically store the value's
 [MIME type](https://tools.ietf.org/html/rfc6838).
 
-* Type of: `library/audiobook is audio/mpeg` will return all objects with the
-  `library/audiobook` tag whose mime type is listed as `audio/mpeg` (i.e. MP3).
+* Type of: `library/audiobook is mime:audio/mpeg` will return all objects with
+  the `library/audiobook` tag whose mime type is listed as `audio/mpeg` (i.e.
+  MP3). MIME type information is always treated as case insensitive.
 
-The current list of valid MIME types and what they represent can be found
-[on the IANA's website](https://www.iana.org/assignments/media-types/media-types.xhtml).
+The current list of valid MIME types (and what file types they represent) can
+be found [on the IANA's website](https://www.iana.org/assignments/media-types/media-types.xhtml).

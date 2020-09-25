@@ -110,20 +110,40 @@ class QueryLexerTestCase(TestCase):
     def test_path(self):
         """
         A path is: unicode-namespace-slug/unicode-tag-slug
-
-        A path can also encode a MIME type (see RFC6836 and RFC4855).
         """
-        # Tag path
         example = "namespace-汉字-slug/tag_汉字_slug"
         result = list(self.lexer.tokenize(example))
         token = result[0]
         self.assertEqual(token.type, "PATH")
         self.assertEqual(token.value, example)
-        # MIME type
-        example = "image/jpeg"
-        result = list(self.lexer.tokenize(example))
+        # Ensure all tag paths without duplications are logged in the lexer.
+        example2 = "namespace/tag"
+        result = list(self.lexer.tokenize(example2))
         token = result[0]
         self.assertEqual(token.type, "PATH")
+        self.assertEqual(token.value, example2)
+        list(self.lexer.tokenize(example))
+        self.assertIn(example, self.lexer.tag_paths)
+        self.assertIn(example2, self.lexer.tag_paths)
+        self.assertEqual(2, len(self.lexer.tag_paths))
+
+    def test_mime_type(self):
+        """
+        A MIME type is:
+
+        mime:registry/name
+
+        For example:
+
+        mime:text/html
+        MIME:application/vnd.oma.poc.optimized-progress-report+xml
+
+        See RFC6836 and RFC4855.
+        """
+        example = "mime:image/jpeg"
+        result = list(self.lexer.tokenize(example))
+        token = result[0]
+        self.assertEqual(token.type, "MIME")
         self.assertEqual(token.value, example)
 
     def test_duration(self):
@@ -204,6 +224,7 @@ class QueryLexerTestCase(TestCase):
             "MATCHES",
             "IMATCHES",
             "IS",
+            "IIS",
         ]
         for k in keywords:
             result = list(self.lexer.tokenize(k))
@@ -292,8 +313,13 @@ class QueryLexerTestCase(TestCase):
         self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "NE")
         self.assertEqual(tokens[2].type, "FLOAT")
-        query = "gallery/image is image/jpeg"  # :-)
+        query = "gallery/image is image/jpeg"
         tokens = list(self.lexer.tokenize(query))
         self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "IS")
         self.assertEqual(tokens[2].type, "PATH")
+        query = 'library/title iis "moby dick"'
+        tokens = list(self.lexer.tokenize(query))
+        self.assertEqual(tokens[0].type, "PATH")
+        self.assertEqual(tokens[1].type, "IIS")
+        self.assertEqual(tokens[2].type, "STRING")

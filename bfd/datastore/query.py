@@ -1,7 +1,8 @@
 """
 Parses the simple query language into matching objects in the database layer.
 Uses the Sly (https://sly.readthedocs.io/en/latest/) lexer/parser library by
-Dave Beazley.
+Dave Beazley. Thanks to the "dynamic" nature of SLY, mypy and flake8 complain,
+hence all the "type: ignore" and "noqa" comment-flags to silence them.
 
 Copyright (C) 2020 Nicholas H.Tollervey (ntoll@ntoll.org).
 
@@ -21,26 +22,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 import structlog  # type: ignore
 from datetime import timedelta
 from typing import List
-from sly import Lexer  # type: ignore
+from sly import Lexer, Parser  # type: ignore
 from dateutil.parser import parse as datetime_parser  # type: ignore
+from django.db.models import Q  # type: ignore
+from datastore import utils
 
 
 logger = structlog.get_logger()
-
-
-#: Valid registry names for MIME types. See: RFC6836, RFC4855.
-MIME_REGISTRIES = [
-    "application",
-    "audio",
-    "font",
-    "example",
-    "image",
-    "message",
-    "model",
-    "multipart",
-    "text",
-    "video",
-]
 
 
 class QueryLexer(Lexer):
@@ -48,8 +36,13 @@ class QueryLexer(Lexer):
     A simple Sly based lexer for the query language.
     """
 
+    def __init__(self):
+        super().__init__()
+        self.tag_paths = set()
+
     tokens = {
         PATH,  # type: ignore # noqa
+        MIME,  # type: ignore # noqa
         STRING,  # type: ignore # noqa
         TRUE,  # type: ignore # noqa
         FALSE,  # type: ignore # noqa
@@ -64,6 +57,7 @@ class QueryLexer(Lexer):
         MATCHES,  # type: ignore # noqa
         IMATCHES,  # type: ignore # noqa
         IS,  # type: ignore # noqa
+        IIS,  # type: ignore # noqa
         EQ,  # type: ignore # noqa
         NE,  # type: ignore # noqa
         GT,  # type: ignore # noqa
@@ -92,6 +86,15 @@ class QueryLexer(Lexer):
         Strings of unicode characters enclosed in double quotes.
         """
         t.value = t.value[1:-1]
+        return t
+
+    @_(r"[-\w]+/[-\w]+")  # type: ignore
+    def PATH(self, t):
+        """
+        Paths are added to the tag_path set so their read permission can be
+        checked before evaluating operations.
+        """
+        self.tag_paths.add(t.value)
         return t
 
     # Floats must come before integers.
@@ -153,7 +156,7 @@ class QueryLexer(Lexer):
         "(",
         ")",
     }
-    PATH = r"[-\w]+/[-\w]+"
+    MIME = r"(?i)mime:(application|audio|font|example|image|message|model|multipart|text|video){1}/[-\.\w]+[\+\-\w]*"  # noqa
     HAS = r"(?i)has"
     MISSING = r"(?i)missing"
     AND = r"(?i)and"
@@ -161,6 +164,7 @@ class QueryLexer(Lexer):
     MATCHES = r"(?i)matches"
     IMATCHES = r"(?i)imatches"
     IS = r"(?i)is"
+    IIS = r"(?i)iis"
     NE = r"!="
     GE = r">="
     LE = r"<="
@@ -171,27 +175,105 @@ class QueryLexer(Lexer):
     # Syntax error handling.
 
     def error(self, t):
-        raise SyntaxError(f"Line {self.lineno}: {t.value[0]}")
+        raise SyntaxError(
+            f"Unknown token: line {self.lineno}, character: {t.value[0]}"
+        )
 
 
-# class QueryParser(Parser):
-#     """
-#     Sly based parser for the query language.
-#     """
-#
-#     tokens = QueryLexer.tokens
-#
-#     # Grammar rules and actions.
-
-
-def parse(query: str) -> List[str]:
+class QueryParser(Parser):
     """
-    Parse the query string and return a list of matching object_ids.
+    Sly based parser for the query language.
+    """
+
+    tokens = QueryLexer.tokens
+
+    # Grammar rules and actions.
+
+    @_("EQ")  # type: ignore
+    def operator(self, p):  # type: ignore # noqa
+        return p.EQ
+
+    @_("NE")  # type: ignore
+    def operator(self, p):  # type: ignore # noqa
+        return p.NE
+
+    @_("GE")  # type: ignore
+    def operator(self, p):  # type: ignore # noqa
+        return p.GE
+
+    @_("LE")  # type: ignore
+    def operator(self, p):  # type: ignore # noqa
+        return p.LE
+
+    @_("GT")  # type: ignore
+    def operator(self, p):  # type: ignore # noqa
+        return p.GT
+
+    @_("LT")  # type: ignore
+    def operator(self, p):  # type: ignore # noqa
+        return p.LT
+
+    @_("HAS PATH")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for presence of a tag on an object.
+        """
+        namespace, tag = p.PATH[1].split("/")
+        uuid = utils.get_uuid(namespace, tag)
+        return Q(uuid__exact=uuid)
+
+    @_("PATH IS MIME")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for MIME type.
+
+        Ensure the second path is of a valid MIME registry type.
+        """
+        return Q(mime__iexact=p.MIME)
+
+    @_("PATH IS STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for string equality.
+        """
+        return Q(value__exact=p.STRING)
+
+    @_("PATH IIS STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for case insensitive string equality.
+        """
+        return Q(value__iexact=p.STRING)
+
+    @_("PATH MATCHES STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for string matching.
+        """
+        return Q(value__contains=p.STRING)
+
+    @_("PATH IMATCHES STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for case insensitive string matching.
+        """
+        return Q(value__icontains=p.STRING)
+
+    def error(self, p):
+        msg = (
+            f'Cannot parse {p.type} (with value "{p.value}") on line '
+            f"{p.lineno}, character {p.index}."
+        )
+        raise SyntaxError(msg)
+
+
+def eval(query: str) -> List[str]:
+    """
+    Evaluate the query string and return a list of matching object_ids.
     """
     # Tokenize.
     # lexer = QueryLexer()
     # tokens = lexer.tokenize(str)
-    # tags = lexer.tagpaths
     # Check tag read permissions.
     # Parse.
     # Extract matching object_ids.
