@@ -17,7 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import time
-from typing import Union, Dict, Type, Set
+from typing import Union, Dict, Type, Set, Sequence, Tuple
 from . import utils
 from datetime import datetime, timedelta
 from django.core.files import uploadedfile  # type: ignore
@@ -693,3 +693,55 @@ VALUE_TYPE_MAP: Dict["str", Type[AbstractBaseValue]] = {
     "a": BinaryValue,
     "p": PointerValue,
 }
+
+
+def get_users_query(
+    user: User, tags: Sequence[Tuple[str, str]]
+) -> models.query.QuerySet:
+    """
+    Given a list of namespace/tag tuples of interest, return a query to get
+    all the tags in that list that the referenced user is allowed to make use
+    of to annotate values onto objects.
+    """
+    # Gather unique UUIDs for each namespace/tag.
+    uuids = [utils.get_uuid(namespace, tag) for namespace, tag in tags]
+    # Find the number of matching tags that are either public, where the user
+    # has the role "user" associated with the tag or where the user is an admin
+    # of the parent namespace. Working in this way means we only have a single
+    # lazy database query that can be further modified before being executed.
+    # Performance of this check is therefore relatively quick since it's done
+    # at the database layer, rather than in Python.
+    query = Tag.objects.filter(uuid__in=uuids)
+    if not user.is_superuser:
+        query = query.filter(
+            models.Q(users__id=user.id)
+            | models.Q(namespace__admins__id=user.id)
+        ).distinct()
+    return query
+
+
+def get_readers_query(
+    user: User, tags: Sequence[Tuple[str, str]]
+) -> models.query.QuerySet:
+    """
+    Given a list of namespace/tag tuples of interest, return a query to get all
+    the tags in that list that the referenced user is allowed to use to read
+    values from objects.
+    """
+    # Gather unique UUIDs for each namespace/tag.
+    uuids = [utils.get_uuid(namespace, tag) for namespace, tag in tags]
+    # Find the number of matching tags that are either public, where the user
+    # has the roles "user" or "reader" associated with the tag or where the
+    # user is an admin of the parent namespace. Working in this way means we
+    # only have a single lazy database query that can be further modified
+    # before being executed. Performance of this check is therefore relatively
+    # quick since it's done at the database layer, rather than in Python.
+    query = Tag.objects.filter(uuid__in=uuids)
+    if not user.is_superuser:
+        query = query.filter(
+            models.Q(private=False)
+            | models.Q(users__id=user.id)
+            | models.Q(readers__id=user.id)
+            | models.Q(namespace__admins__id=user.id)
+        ).distinct()
+    return query

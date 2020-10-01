@@ -26,6 +26,7 @@ from django.core.exceptions import ValidationError
 from django.core.files import uploadedfile
 from django.db.models import Q
 from datastore.utils import get_uuid
+from datastore import logic
 
 
 class UserTestCase(TestCase):
@@ -949,3 +950,261 @@ class UploadToTestCase(TestCase):
         with mock.patch("datastore.models.time", mock_time):
             result = models.upload_to(val, filename)
             self.assertEqual(path, result)
+
+
+class TagQueryTestCase(TestCase):
+    """
+    Exercises the functions used to bulk return tags by path/uuid.
+    """
+
+    def setUp(self):
+        self.site_admin_user = models.User.objects.create_user(
+            username="site_admin_user",
+            email="test@user.com",
+            password="password",
+            is_superuser=True,
+        )
+        self.admin_user = models.User.objects.create_user(
+            username="admin_user", email="test2@user.com", password="password",
+        )
+        self.tag_user = models.User.objects.create_user(
+            username="tag_user", email="test3@user.com", password="password",
+        )
+        self.tag_reader = models.User.objects.create_user(
+            username="tag_reader", email="test4@user.com", password="password",
+        )
+        self.normal_user = models.User.objects.create_user(
+            username="normal_user",
+            email="test5@user.com",
+            password="password",
+        )
+        self.namespace_name = "test_namespace"
+        self.namespace_description = "This is a test namespace."
+        self.test_namespace = logic.create_namespace(
+            self.site_admin_user,
+            self.namespace_name,
+            self.namespace_description,
+            admins=[self.admin_user,],
+        )
+        self.public_tag_name = "public_tag"
+        self.public_tag_description = "This is a public tag."
+        self.public_tag_type_of = "s"
+        self.public_tag = logic.create_tag(
+            user=self.admin_user,
+            name=self.public_tag_name,
+            description=self.public_tag_description,
+            type_of=self.public_tag_type_of,
+            namespace=self.test_namespace,
+            private=False,
+        )
+        self.user_tag_name = "user_tag"
+        self.user_tag_description = "This is a user tag."
+        self.user_tag_type_of = "b"
+        self.user_tag = logic.create_tag(
+            user=self.admin_user,
+            name=self.user_tag_name,
+            description=self.user_tag_description,
+            type_of=self.user_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            users=[self.tag_user,],
+        )
+        self.reader_tag_name = "reader_tag"
+        self.reader_tag_description = "This is a reader tag."
+        self.reader_tag_type_of = "i"
+        self.reader_tag = logic.create_tag(
+            user=self.admin_user,
+            name=self.reader_tag_name,
+            description=self.reader_tag_description,
+            type_of=self.reader_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            readers=[self.tag_reader,],
+        )
+
+    def test_get_users_query_as_site_admin_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        Site admin users always match all tags.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_users_query(self.site_admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_users_query_as_admin_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        Users who are administrators of the parent namespace always match all
+        child tags.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_users_query(self.admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_users_query_as_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        A user can only see tags for which it has the "user" role.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_users_query(self.tag_user, tag_list)
+        self.assertEqual(1, len(result))
+        self.assertIn(self.user_tag, result)
+
+    def test_get_users_query_as_reader(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        If a user has a reader role associated with a private tag, it makes no
+        difference to their ability to be a user of that tag.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_users_query(self.tag_reader, tag_list)
+        self.assertEqual(0, len(result))
+
+    def test_get_users_query_as_normal_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        annotate values onto objects.
+
+        Users without the "users" role, don't get any matches.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_users_query(self.normal_user, tag_list)
+        self.assertEqual(0, len(result))
+
+    def test_get_readers_query_as_site_admin(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        A site admin can always use tags to read values.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_readers_query(self.site_admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_readers_query_as_admin_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        If a user has administrator role for the parent namespace, they can
+        always use tags to read values.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_readers_query(self.admin_user, tag_list)
+        self.assertEqual(3, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_readers_query_as_tag_reader_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        A user with readers role on a tag can read using that tag.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_readers_query(self.tag_reader, tag_list)
+        self.assertEqual(2, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.reader_tag, result)
+
+    def test_get_readers_query_as_tag_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        A user with users role on a tag can also read using that tag.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_readers_query(self.tag_user, tag_list)
+        self.assertEqual(2, len(result))
+        self.assertIn(self.public_tag, result)
+        self.assertIn(self.user_tag, result)
+
+    def test_get_readers_query_as_normal_user(self):
+        """
+        Given a user and a list of candidate tags, ensure a QuerySet is
+        returned that finds all the Tag instances the user is able to use to
+        read values from objects (either public tags, or tags for which the
+        user has a "reader" role).
+
+        Normal users with no particular role only see public tags with which to
+        read values.
+        """
+        tag_list = [
+            (self.namespace_name, self.public_tag_name),
+            (self.namespace_name, self.user_tag_name),
+            (self.namespace_name, self.reader_tag_name),
+        ]
+        result = models.get_readers_query(self.normal_user, tag_list)
+        self.assertEqual(1, len(result))
+        self.assertIn(self.public_tag, result)

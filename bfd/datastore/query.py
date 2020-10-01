@@ -21,11 +21,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import structlog  # type: ignore
 from datetime import timedelta
-from typing import List
+from typing import List, Set, Tuple, Union
 from sly import Lexer, Parser  # type: ignore
 from dateutil.parser import parse as datetime_parser  # type: ignore
 from django.db.models import Q  # type: ignore
 from datastore import utils
+from datastore import models
 
 
 logger = structlog.get_logger()
@@ -92,7 +93,7 @@ class QueryLexer(Lexer):
     def PATH(self, t):
         """
         Paths are added to the tag_path set so their read permission can be
-        checked before evaluating operations.
+        checked before evaluating operations. No other change is made.
         """
         self.tag_paths.add(t.value)
         return t
@@ -187,6 +188,67 @@ class QueryParser(Parser):
 
     tokens = QueryLexer.tokens
 
+    def __init__(self, user: models.User, tag_paths: Set[str]):
+        super().__init__()
+        # tagpaths are used to check read permissions for the query and
+        # retrieve tag instances to use to get the result sets.
+        tag_tuples: List[Tuple[str, str]] = []
+        for path in tag_paths:
+            n, t = path.split("/")
+            tag_tuples.append((n, t))
+        tags_to_read = models.get_readers_query(user, tag_tuples)
+        self.tags = {}
+        for tag in tags_to_read:
+            # self.tags contains tag instances to use to create result sets
+            # from the database.
+            self.tags[tag.uuid] = tag
+        if len(tags_to_read) != len(tag_paths):
+            # The user doesn't have permission to read certain tags, or the
+            # referenced tags do not exist. So raise a value error referencing
+            # the problem tags so the user has a clue where the problem may be
+            # found.
+            missing_tags = []
+            for tag in tag_paths:
+                n, t = path.split("/")
+                uuid = utils.get_uuid(n, t)
+                if uuid not in self.tags:
+                    missing_tags.append(tag)
+            raise ValueError(
+                "The following tags cannot be read: " + ", ".join(missing_tags)
+            )
+
+    def _evaluate_query(
+        self,
+        tag_path: str,
+        applies_to: Set[str],
+        operator: str,
+        query: Q,
+        exclude: Union[None, Q] = None,
+    ) -> Set[str]:
+        """
+        Match objects annotated with the tag_path via the referenced query and
+        optional exclusion.
+
+        If the tag is not of a type to which the query applies, raise a
+        ValueError exception.
+
+        Returns a set containing the object_ids of matches.
+        """
+        n, t = tag_path.split("/")
+        uuid = utils.get_uuid(n, t)
+        tag = self.tags.get(uuid)
+        if tag:
+            type_of = tag.get_type_of_display()
+            if type_of in applies_to:
+                return tag.filter(query, exclude)
+            else:
+                raise ValueError(
+                    f'Cannot use operator "{operator}" on tag: {tag_path} '
+                    f"({type_of})"
+                )
+        else:
+            raise ValueError(f"Unknown tag: {tag_path}")
+
     # Grammar rules and actions.
 
     @_("EQ")  # type: ignore
@@ -213,12 +275,19 @@ class QueryParser(Parser):
     def operator(self, p):  # type: ignore # noqa
         return p.LT
 
+    @_("MISSING PATH")  # type: ignore
+    def exclusion(self, p):  # type: ignore # noqa
+        """
+        Exclusion of objects with a certain tag.
+        """
+        return p.PATH
+
     @_("HAS PATH")  # type: ignore
     def query(self, p):  # type: ignore # noqa
         """
         Query for presence of a tag on an object.
         """
-        namespace, tag = p.PATH[1].split("/")
+        namespace, tag = p.PATH.split("/")
         uuid = utils.get_uuid(namespace, tag)
         return Q(uuid__exact=uuid)
 
@@ -267,13 +336,15 @@ class QueryParser(Parser):
         raise SyntaxError(msg)
 
 
-def eval(query: str) -> List[str]:
+def eval(user: models.User, query: str) -> Set[str]:
     """
     Evaluate the query string and return a list of matching object_ids.
     """
     # Tokenize.
-    # lexer = QueryLexer()
-    # tokens = lexer.tokenize(str)
+    lexer = QueryLexer()
+    tokens = str(lexer.tokenize(str))
     # Check tag read permissions.
+    parser = QueryParser(user, lexer.tag_paths)
     # Parse.
-    # Extract matching object_ids.
+    result = parser.parse(tokens)
+    return result

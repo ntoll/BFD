@@ -19,7 +19,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 from datetime import datetime, timedelta
 from dateutil.tz import tzoffset, tzlocal
 from django.test import TestCase
+from django.db.models import Q
 from datastore import query
+from datastore import logic
+from datastore import models
 
 
 class QueryLexerTestCase(TestCase):
@@ -323,3 +326,188 @@ class QueryLexerTestCase(TestCase):
         self.assertEqual(tokens[0].type, "PATH")
         self.assertEqual(tokens[1].type, "IIS")
         self.assertEqual(tokens[2].type, "STRING")
+
+
+class QueryParserTestCase(TestCase):
+    """
+    Ensure the QueryParser object takes the tokens from the lexer (see above)
+    and returns the expected set of matching object_ids given various queries.
+    """
+
+    def setUp(self):
+        self.lexer = query.QueryLexer()
+        self.site_admin_user = models.User.objects.create_user(
+            username="site_admin_user",
+            email="test@user.com",
+            password="password",
+            is_superuser=True,
+        )
+        self.admin_user = models.User.objects.create_user(
+            username="admin_user", email="test2@user.com", password="password",
+        )
+        self.tag_user = models.User.objects.create_user(
+            username="tag_user", email="test3@user.com", password="password",
+        )
+        self.tag_reader = models.User.objects.create_user(
+            username="tag_reader", email="test4@user.com", password="password",
+        )
+        self.normal_user = models.User.objects.create_user(
+            username="normal_user",
+            email="test5@user.com",
+            password="password",
+        )
+        self.namespace_name = "test_namespace"
+        self.namespace_description = "This is a test namespace."
+        self.test_namespace = logic.create_namespace(
+            self.site_admin_user,
+            self.namespace_name,
+            self.namespace_description,
+            admins=[self.admin_user,],
+        )
+        self.public_tag_name = "public_tag"
+        self.public_tag_description = "This is a public tag."
+        self.public_tag_type_of = "s"
+        self.public_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.public_tag_name,
+            description=self.public_tag_description,
+            type_of=self.public_tag_type_of,
+            namespace=self.test_namespace,
+            private=False,
+        )
+        self.user_tag_name = "user_tag"
+        self.user_tag_description = "This is a user tag."
+        self.user_tag_type_of = "b"
+        self.user_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.user_tag_name,
+            description=self.user_tag_description,
+            type_of=self.user_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            users=[self.tag_user,],
+        )
+        self.reader_tag_name = "reader_tag"
+        self.reader_tag_description = "This is a reader tag."
+        self.reader_tag_type_of = "i"
+        self.reader_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.reader_tag_name,
+            description=self.reader_tag_description,
+            type_of=self.reader_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            readers=[self.tag_reader,],
+        )
+
+    def test_init_readable_tag(self):
+        """
+        Ensure that the tagpaths are checked for read permission with the
+        referenced user.
+
+        In this case, the tag is readable by the referenced user.
+        """
+        list(self.lexer.tokenize('test_namespace/public_tag matches "hello"'))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        self.assertEqual(len(parser.tags), 1)
+        self.assertIn(self.public_tag.uuid, parser.tags)
+        self.assertEqual(parser.tags[self.public_tag.uuid], self.public_tag)
+
+    def test_init_invisible_tag(self):
+        """
+        Ensure that the tagpaths are checked for read permission with the
+        referenced user.
+
+        In this case the tag exists but is not readable by the referenced
+        user.
+        """
+        list(self.lexer.tokenize('test_namespace/reader_tag matches "hello"'))
+        with self.assertRaises(ValueError) as ex:
+            query.QueryParser(self.normal_user, self.lexer.tag_paths)
+        msg = ex.exception.args[0]
+        self.assertIn("test_namespace/reader_tag", msg)
+
+    def test_init_missing_tag(self):
+        """
+        Ensure that the tagpaths are checked for read permission with the
+        referenced user.
+
+        In this case the tag does not exist.
+        """
+        list(self.lexer.tokenize('test_namespace/missing_tag matches "hello"'))
+        with self.assertRaises(ValueError) as ex:
+            query.QueryParser(self.normal_user, self.lexer.tag_paths)
+        msg = ex.exception.args[0]
+        self.assertIn("test_namespace/missing_tag", msg)
+
+    def test_evaluate_query(self):
+        """
+        Given a tag path, an indication of the type of object to which such a
+        query could be applied, a Q object (defining an appropriate query) and
+        an optional Q object defining what to exclude:
+
+        * Check the tag is of the appropriate type to which the queries could
+          be applied (raise a ValueError if not),
+        * Return a set containing the object_ids of matching objects annotated
+          by the tag that match the queries.
+        """
+        val = self.public_tag.annotate(
+            self.admin_user, "test_object", "a test value"
+        )
+        val.save()
+        list(self.lexer.tokenize('test_namespace/public_tag matches "hello"'))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser._evaluate_query(
+            "test_namespace/public_tag",
+            {"string", "url",},
+            "MATCHES",
+            Q(value__contains="test"),
+        )
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object", result)
+
+    def test_evaluate_query_unknown_tag(self):
+        """
+        If the query is for an unknown tag, an informative ValueError exception
+        is raised.
+        """
+        val = self.public_tag.annotate(
+            self.admin_user, "test_object", "a test value"
+        )
+        val.save()
+        list(self.lexer.tokenize('test_namespace/public_tag matches "hello"'))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        with self.assertRaises(ValueError) as ex:
+            parser._evaluate_query(
+                "test_namespace/unknown_tag",
+                {"string", "url",},
+                "MATCHES",
+                Q(value__contains="test"),
+            )
+        msg = ex.exception.args[0]
+        self.assertEqual("Unknown tag: test_namespace/unknown_tag", msg)
+
+    def test_evaluate_query_wrong_type_of_operator(self):
+        """
+        If the query uses an operator that can't work with the type of the
+        referenced tag, an informative ValueError exception is raised.
+        """
+        val = self.public_tag.annotate(
+            self.admin_user, "test_object", "a test value"
+        )
+        val.save()
+        list(self.lexer.tokenize('test_namespace/public_tag matches "hello"'))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        with self.assertRaises(ValueError) as ex:
+            parser._evaluate_query(
+                "test_namespace/public_tag",
+                {"int", "float", "datetime", "duration"},
+                "MATCHES",
+                Q(value__contains="test"),
+            )
+        msg = ex.exception.args[0]
+        expected = (
+            'Cannot use operator "MATCHES" on tag: test_namespace/public_tag '
+            "(string)"
+        )
+        self.assertEqual(expected, msg)

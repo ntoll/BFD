@@ -18,12 +18,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import structlog  # type: ignore
 from typing import Sequence, Union, List, Dict, Tuple
-from django.db.models import Q, query  # type: ignore
+from django.db.models import Q  # type: ignore
 from django.http import HttpRequest  # type: ignore
 from django.contrib.auth.models import User  # type: ignore
 from django.utils.translation import gettext_lazy as _  # type: ignore
 from datastore import models
-from datastore import utils
 
 # from datastore.query import parse
 
@@ -504,57 +503,6 @@ def remove_tag_readers(
         )
 
 
-def get_users_query(
-    user: models.User, tags: Sequence[Tuple[str, str]]
-) -> query.QuerySet:
-    """
-    Given a list of namespace/tag tuples of interest, return a query to get
-    all the tags in that list that the referenced user is allowed to make use
-    of to annotate values onto objects.
-    """
-    # Gather unique UUIDs for each namespace/tag.
-    uuids = [utils.get_uuid(namespace, tag) for namespace, tag in tags]
-    # Find the number of matching tags that are either public, where the user
-    # has the role "user" associated with the tag or where the user is an admin
-    # of the parent namespace. Working in this way means we only have a single
-    # lazy database query that can be further modified before being executed.
-    # Performance of this check is therefore relatively quick since it's done
-    # at the database layer, rather than in Python.
-    query = models.Tag.objects.filter(uuid__in=uuids)
-    if not user.is_superuser:
-        query = query.filter(
-            Q(users__id=user.id) | Q(namespace__admins__id=user.id)
-        ).distinct()
-    return query
-
-
-def get_readers_query(
-    user: models.User, tags: Sequence[Tuple[str, str]]
-) -> query.QuerySet:
-    """
-    Given a list of namespace/tag tuples of interest, return a query to get all
-    the tags in that list that the referenced user is allowed to use to read
-    values from objects.
-    """
-    # Gather unique UUIDs for each namespace/tag.
-    uuids = [utils.get_uuid(namespace, tag) for namespace, tag in tags]
-    # Find the number of matching tags that are either public, where the user
-    # has the roles "user" or "reader" associated with the tag or where the
-    # user is an admin of the parent namespace. Working in this way means we
-    # only have a single lazy database query that can be further modified
-    # before being executed. Performance of this check is therefore relatively
-    # quick since it's done at the database layer, rather than in Python.
-    query = models.Tag.objects.filter(uuid__in=uuids)
-    if not user.is_superuser:
-        query = query.filter(
-            Q(private=False)
-            | Q(users__id=user.id)
-            | Q(readers__id=user.id)
-            | Q(namespace__admins__id=user.id)
-        ).distinct()
-    return query
-
-
 def check_users_tags(
     user: models.User, tags: Sequence[Tuple[str, str]]
 ) -> bool:
@@ -567,7 +515,7 @@ def check_users_tags(
     if user.is_superuser:
         return True
     # Count the number of tags that the user has permission to use.
-    tag_matches = get_users_query(user, tags).count()
+    tag_matches = models.get_users_query(user, tags).count()
     # If the number of tag_matches is the same as the number of unique tags to
     # be checked, then the user MUST have permission to read on all the
     # referenced tags.
@@ -586,7 +534,7 @@ def check_readers_tags(
     if user.is_superuser:
         return True
     # Count the number of tags that the user has permission to use.
-    tag_matches = get_readers_query(user, tags).count()
+    tag_matches = models.get_readers_query(user, tags).count()
     # If the number of tag_matches is the same as the number of unique tags to
     # be checked, then the user MUST have permission to read on all the
     # referenced tags.
