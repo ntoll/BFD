@@ -25,6 +25,7 @@ from typing import List, Set, Tuple, Union
 from sly import Lexer, Parser  # type: ignore
 from dateutil.parser import parse as datetime_parser  # type: ignore
 from django.db.models import Q  # type: ignore
+from django.utils import timezone  # type: ignore
 from datastore import utils
 from datastore import models
 
@@ -76,9 +77,14 @@ class QueryLexer(Lexer):
     def DATETIME(self, t):
         """
         A datetime expressed as https://www.w3.org/TR/NOTE-datetime. Resolves
-        to a Python datetime.
+        to a Python datetime. If the parsed datetime doesn't include timezone
+        information, a timezone is added based on the current Django timezone
+        configuration.
         """
-        t.value = datetime_parser(t.value)
+        dt = datetime_parser(t.value)
+        if not dt.tzinfo:
+            dt = timezone.make_aware(dt)
+        t.value = dt
         return t
 
     @_(r"\"([^\\\"]+|\\\"|\\\\)*\"")  # type: ignore
@@ -145,6 +151,14 @@ class QueryLexer(Lexer):
         t.value = False
         return t
 
+    @_(r"(?i)mime:(application|audio|font|example|image|message|model|multipart|text|video){1}/[-\.\w]+[\+\-\w]*")  # type: ignore # noqa
+    def MIME(self, t):
+        """
+        Remove the prepended "mime:"
+        """
+        t.value = t.value[5:]
+        return t
+
     # Line number tracking.
 
     @_(r"\n+")  # type: ignore
@@ -157,7 +171,6 @@ class QueryLexer(Lexer):
         "(",
         ")",
     }
-    MIME = r"(?i)mime:(application|audio|font|example|image|message|model|multipart|text|video){1}/[-\.\w]+[\+\-\w]*"  # noqa
     HAS = r"(?i)has"
     MISSING = r"(?i)missing"
     AND = r"(?i)and"
@@ -222,7 +235,7 @@ class QueryParser(Parser):
         tag_path: str,
         applies_to: Set[str],
         operator: str,
-        query: Q,
+        query: Union[None, Q] = None,
         exclude: Union[None, Q] = None,
     ) -> Set[str]:
         """
@@ -250,6 +263,141 @@ class QueryParser(Parser):
             raise ValueError(f"Unknown tag: {tag_path}")
 
     # Grammar rules and actions.
+
+    @_("HAS PATH")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for presence of a tag on an object.
+        """
+        namespace, tag = p.PATH.split("/")
+        uuid = utils.get_uuid(namespace, tag)
+        return self._evaluate_query(
+            p.PATH,
+            {
+                "string",
+                "boolean",
+                "integer",
+                "float",
+                "datetime",
+                "duration",
+                "binary",
+                "pointer",
+            },
+            p.HAS,
+            Q(uuid__exact=uuid),
+        )
+
+    @_("PATH IS MIME")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for MIME type.
+        """
+        return self._evaluate_query(
+            p.PATH, {"binary"}, p.IS, Q(mime__iexact=p.MIME)
+        )
+
+    @_("PATH IS STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for string equality.
+        """
+        return self._evaluate_query(
+            p.PATH, {"string", "pointer"}, p.IS, Q(value__exact=p.STRING)
+        )
+
+    @_("PATH IIS STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for case insensitive string equality.
+        """
+        return self._evaluate_query(
+            p.PATH, {"string", "pointer"}, p.IIS, Q(value__iexact=p.STRING)
+        )
+
+    @_("PATH MATCHES STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for string matching (the string contains the search term).
+        """
+        return self._evaluate_query(
+            p.PATH,
+            {"string", "pointer"},
+            p.MATCHES,
+            Q(value__contains=p.STRING),
+        )
+
+    @_("PATH IMATCHES STRING")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for case insensitive string matching (the string contains the
+        search term).
+        """
+        return self._evaluate_query(
+            p.PATH,
+            {"string", "pointer"},
+            p.IMATCHES,
+            Q(value__icontains=p.STRING),
+        )
+
+    @_("PATH IS boolean")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for a boolean value.
+        """
+        return self._evaluate_query(
+            p.PATH, {"boolean",}, p.IS, Q(value__exact=p.boolean)
+        )
+
+    @_("PATH operator scalar")  # type: ignore
+    def query(self, p):  # type: ignore # noqa
+        """
+        Query for scalar comparisons.
+        """
+        query = None
+        exclude = None
+        if p.operator == "!=":
+            exclude = Q(value__exact=p.scalar)
+        elif p.operator == ">=":
+            query = Q(value__gte=p.scalar)
+        elif p.operator == "<=":
+            query = Q(value__lte=p.scalar)
+        elif p.operator == ">":
+            query = Q(value__gt=p.scalar)
+        elif p.operator == "<":
+            query = Q(value__lt=p.scalar)
+        elif p.operator == "=":
+            query = Q(value__exact=p.scalar)
+        return self._evaluate_query(
+            p.PATH,
+            {"integer", "float", "datetime", "duration",},
+            p.operator,
+            query,
+            exclude,
+        )
+
+    @_("TRUE")  # type: ignore
+    def boolean(self, p):  # type: ignore # noqa
+        return p.TRUE
+
+    @_("FALSE")  # type: ignore
+    def boolean(self, p):  # type: ignore # noqa
+        return p.FALSE
+
+    @_("INT")  # type: ignore
+    def scalar(self, p):  # type: ignore # noqa
+        return p.INT
+
+    @_("FLOAT")  # type: ignore
+    def scalar(self, p):  # type: ignore # noqa
+        return p.FLOAT
+
+    @_("DURATION")  # type: ignore
+    def scalar(self, p):  # type: ignore # noqa
+        return p.DURATION
+
+    @_("DATETIME")  # type: ignore
+    def scalar(self, p):  # type: ignore # noqa
+        return p.DATETIME
 
     @_("EQ")  # type: ignore
     def operator(self, p):  # type: ignore # noqa
@@ -281,52 +429,6 @@ class QueryParser(Parser):
         Exclusion of objects with a certain tag.
         """
         return p.PATH
-
-    @_("HAS PATH")  # type: ignore
-    def query(self, p):  # type: ignore # noqa
-        """
-        Query for presence of a tag on an object.
-        """
-        namespace, tag = p.PATH.split("/")
-        uuid = utils.get_uuid(namespace, tag)
-        return Q(uuid__exact=uuid)
-
-    @_("PATH IS MIME")  # type: ignore
-    def query(self, p):  # type: ignore # noqa
-        """
-        Query for MIME type.
-
-        Ensure the second path is of a valid MIME registry type.
-        """
-        return Q(mime__iexact=p.MIME)
-
-    @_("PATH IS STRING")  # type: ignore
-    def query(self, p):  # type: ignore # noqa
-        """
-        Query for string equality.
-        """
-        return Q(value__exact=p.STRING)
-
-    @_("PATH IIS STRING")  # type: ignore
-    def query(self, p):  # type: ignore # noqa
-        """
-        Query for case insensitive string equality.
-        """
-        return Q(value__iexact=p.STRING)
-
-    @_("PATH MATCHES STRING")  # type: ignore
-    def query(self, p):  # type: ignore # noqa
-        """
-        Query for string matching.
-        """
-        return Q(value__contains=p.STRING)
-
-    @_("PATH IMATCHES STRING")  # type: ignore
-    def query(self, p):  # type: ignore # noqa
-        """
-        Query for case insensitive string matching.
-        """
-        return Q(value__icontains=p.STRING)
 
     def error(self, p):
         msg = (

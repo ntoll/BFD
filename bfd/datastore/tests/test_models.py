@@ -552,6 +552,21 @@ class TagTestCase(TestCase):
         self.assertEqual(annotation.value, val)
         self.assertIsInstance(annotation, models.PointerValue)
 
+    def test_filter_must_have_query_or_exclude(self):
+        """
+        Ensure the "guard" against missing a query or exclude raises a
+        ValueError if neither are passed into the filter method.
+        """
+        name = "my_tag"
+        description = "This is a test tag."
+        type_of = models.VALID_DATA_TYPES[0][0]
+        private = False
+        tag = models.Tag.objects.create_tag(
+            name, description, type_of, self.namespace, private, self.user
+        )
+        with self.assertRaises(ValueError):
+            tag.filter()
+
     # The following tests ensure unintentional changes of behaviour don't go
     # unnoticed. But why Nicholas, why..? Tests don't simply prove correctness,
     # they help us make changes with confidence and deviations from expected
@@ -574,8 +589,10 @@ class TagTestCase(TestCase):
         )
         annotation1 = tag.annotate(self.user, "test-object-1", "Hello world!")
         annotation2 = tag.annotate(self.user, "test-object-2", "hello")
+        annotation3 = tag.annotate(self.user, "test-object-3", "Aardvark")
         annotation1.save()
         annotation2.save()
+        annotation3.save()
         result1 = tag.filter(Q(value__contains="world"))
         self.assertEqual(result1, {"test-object-1",})
         result2 = tag.filter(Q(value__icontains="hello"))
@@ -588,6 +605,8 @@ class TagTestCase(TestCase):
             Q(value__icontains="hello"), exclude=Q(value__contains="world")
         )
         self.assertEqual(result5, {"test-object-2",})
+        result6 = tag.filter(None, Q(value__contains="world"))
+        self.assertEqual(result6, {"test-object-2", "test-object-3",})
 
     def test_filter_boolean_values(self):
         """

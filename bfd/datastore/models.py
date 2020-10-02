@@ -418,21 +418,28 @@ class Tag(models.Model):
             raise ValueError(_("Unknown data type for tag: ") + self.path)
 
     def filter(
-        self, query: models.Q, exclude: Union[None, models.Q] = None,
+        self,
+        query: Union[None, models.Q] = None,
+        exclude: Union[None, models.Q] = None,
     ) -> Set[str]:
         """
         Returns a set of object_ids of objects that match the given query and
-        optional exclusion for values annotated with this tag. This query is
-        evaluated for the referenced user. If this user doesn't have permission
-        to read the value of this tag, a PermissionError exception is raised.
+        exclusion for values annotated with this tag (raises a ValueError if
+        neither a query nor exclusion are passed in). This query is evaluated
+        for the referenced user. If this user doesn't have permission to read
+        the value of this tag, a PermissionError exception is raised.
         """
+        if query is None and exclude is None:
+            raise ValueError("Filtering requires a query or exclusion.")
         cls = VALUE_TYPE_MAP[self.type_of]
         set_name = cls.__name__.lower() + "_set"
         db_query = getattr(self, set_name)
-        if exclude:
+        if query and exclude:
             result = db_query.filter(query).exclude(exclude)
-        else:
+        elif query:
             result = db_query.filter(query)
+        else:
+            result = db_query.exclude(exclude)
         return {match.object_id for match in result}
 
     class Meta:

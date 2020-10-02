@@ -16,10 +16,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
-from datetime import datetime, timedelta
+from io import BytesIO
+from datetime import datetime, timedelta, timezone
 from dateutil.tz import tzoffset, tzlocal
 from django.test import TestCase
 from django.db.models import Q
+from django.core.files import uploadedfile
+from django.utils.timezone import make_aware
 from datastore import query
 from datastore import logic
 from datastore import models
@@ -42,17 +45,22 @@ class QueryLexerTestCase(TestCase):
         * 2020-08-19T15:40:30 (the date and time)
         * 2020-08-19T15:40:30-06:30 (the date, time and timezone offset)
         * 2020-08-19T15:40:30Z ("Zulu" time denoting UTC timezone)
+
+        If no timezone information is given, timezone information is added
+        via Django's make_aware function to reflect configuration settings.
         """
         example = "2020-08-19"
         result = list(self.lexer.tokenize(example))
         token = result[0]
         self.assertEqual(token.type, "DATETIME")
-        self.assertEqual(token.value, datetime(2020, 8, 19))
+        self.assertEqual(token.value, make_aware(datetime(2020, 8, 19)))
         example = "2020-08-19T15:40:30"
         result = list(self.lexer.tokenize(example))
         token = result[0]
         self.assertEqual(token.type, "DATETIME")
-        self.assertEqual(token.value, datetime(2020, 8, 19, 15, 40, 30))
+        self.assertEqual(
+            token.value, make_aware(datetime(2020, 8, 19, 15, 40, 30))
+        )
         example = "2020-08-19T15:40:30-06:30"
         result = list(self.lexer.tokenize(example))
         token = result[0]
@@ -142,12 +150,15 @@ class QueryLexerTestCase(TestCase):
         MIME:application/vnd.oma.poc.optimized-progress-report+xml
 
         See RFC6836 and RFC4855.
+
+        The value is modified to remove the pre-pended "mime:" to leave the
+        remaining valid mime type value.
         """
         example = "mime:image/jpeg"
         result = list(self.lexer.tokenize(example))
         token = result[0]
         self.assertEqual(token.type, "MIME")
-        self.assertEqual(token.value, example)
+        self.assertEqual(token.value, "image/jpeg")
 
     def test_duration(self):
         """
@@ -511,3 +522,419 @@ class QueryParserTestCase(TestCase):
             "(string)"
         )
         self.assertEqual(expected, msg)
+
+    def test_has_path(self):
+        """
+        Check expected result from a query for the presence of a tag on an
+        object.
+        """
+        val1 = self.public_tag.annotate(
+            self.admin_user, "test_object1", "a test value"
+        )
+        val2 = self.user_tag.annotate(self.admin_user, "test_object2", True)
+        val3 = self.public_tag.annotate(
+            self.admin_user, "test_object3", "another test value"
+        )
+        val1.save()
+        val2.save()
+        val3.save()
+        tokens = list(self.lexer.tokenize("has test_namespace/public_tag"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 2)
+        self.assertIn("test_object1", result)
+        self.assertIn("test_object3", result)
+
+    def test_path_is_mime(self):
+        """
+        Check expected result from a query asking for objects tagged with a
+        binary blob of a certain MIME type (e.g. image/png).
+        """
+        binary_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="bin-tag",
+            description="A tag for annotating binary data.",
+            type_of="a",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        val = uploadedfile.InMemoryUploadedFile(
+            file=BytesIO(b"hello"),
+            field_name="",
+            name="file.txt",
+            content_type="text/text",
+            size=5,
+            charset="utf-8",
+        )
+        annotation = binary_tag.annotate(self.admin_user, "test_object1", val)
+        annotation.save()
+        tokens = list(
+            self.lexer.tokenize("test_namespace/bin-tag is mime:text/text")
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_path_is_string(self):
+        """
+        Check expected results from a query asking for objects tagged with a
+        string/pointer that exactly matches the search term.
+        """
+        pointer_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="pointer-tag",
+            description="A tag for pointing at things via a URL.",
+            type_of="p",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        val1 = "https://ntoll.org/"
+        val2 = "Hello"
+        annotation1 = pointer_tag.annotate(
+            self.admin_user, "test_object1", val1
+        )
+        annotation2 = self.public_tag.annotate(
+            self.admin_user, "test_object2", val2
+        )
+        annotation1.save()
+        annotation2.save()
+        # Check pointer match.
+        lexer = query.QueryLexer()
+        tokens1 = list(
+            lexer.tokenize(
+                'test_namespace/pointer-tag is "https://ntoll.org/"'
+            )
+        )
+        parser = query.QueryParser(self.admin_user, lexer.tag_paths)
+        result = parser.parse((x for x in tokens1))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+        # Check string match.
+        tokens2 = list(
+            self.lexer.tokenize('test_namespace/public_tag is "Hello"')
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens2))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+
+    def test_path_iis_string(self):
+        """
+        Check expected results from a query asking for objects tagged with a
+        string/pointer that case insensitively matches the search term.
+        """
+        pointer_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="pointer-tag",
+            description="A tag for pointing at things via a URL.",
+            type_of="p",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        val1 = "https://ntoll.org/"
+        val2 = "Hello"
+        annotation1 = pointer_tag.annotate(
+            self.admin_user, "test_object1", val1
+        )
+        annotation2 = self.public_tag.annotate(
+            self.admin_user, "test_object2", val2
+        )
+        annotation1.save()
+        annotation2.save()
+        # Check pointer match.
+        lexer = query.QueryLexer()
+        tokens1 = list(
+            lexer.tokenize(
+                'test_namespace/pointer-tag iis "https://NTOLL.ORG/"'
+            )
+        )
+        parser = query.QueryParser(self.admin_user, lexer.tag_paths)
+        result = parser.parse((x for x in tokens1))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+        # Check string match.
+        tokens2 = list(
+            self.lexer.tokenize('test_namespace/public_tag iis "helLO"')
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens2))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+
+    def test_path_matches_string(self):
+        """
+        Check expected results from a query asking for objects tagged with a
+        string/pointer that contains the search term.
+        """
+        pointer_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="pointer-tag",
+            description="A tag for pointing at things via a URL.",
+            type_of="p",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        val1 = "https://ntoll.org/"
+        val2 = "Hello, world!"
+        annotation1 = pointer_tag.annotate(
+            self.admin_user, "test_object1", val1
+        )
+        annotation2 = self.public_tag.annotate(
+            self.admin_user, "test_object2", val2
+        )
+        annotation1.save()
+        annotation2.save()
+        # Check pointer match.
+        lexer = query.QueryLexer()
+        tokens1 = list(
+            lexer.tokenize('test_namespace/pointer-tag matches "ntoll.org"')
+        )
+        parser = query.QueryParser(self.admin_user, lexer.tag_paths)
+        result = parser.parse((x for x in tokens1))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+        # Check string match.
+        tokens2 = list(
+            self.lexer.tokenize('test_namespace/public_tag matches "Hello"')
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens2))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+
+    def test_path_imatches_string(self):
+        """
+        Check expected results from a query asking for objects tagged with a
+        string/pointer that case insensitively contains the search term.
+        """
+        pointer_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="pointer-tag",
+            description="A tag for pointing at things via a URL.",
+            type_of="p",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        val1 = "https://ntoll.org/"
+        val2 = "Hello"
+        annotation1 = pointer_tag.annotate(
+            self.admin_user, "test_object1", val1
+        )
+        annotation2 = self.public_tag.annotate(
+            self.admin_user, "test_object2", val2
+        )
+        annotation1.save()
+        annotation2.save()
+        # Check pointer match.
+        lexer = query.QueryLexer()
+        tokens1 = list(
+            lexer.tokenize('test_namespace/pointer-tag imatches "NTOLL.ORG"')
+        )
+        parser = query.QueryParser(self.admin_user, lexer.tag_paths)
+        result = parser.parse((x for x in tokens1))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+        # Check string match.
+        tokens2 = list(
+            self.lexer.tokenize('test_namespace/public_tag imatches "HELLO"')
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens2))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+
+    def test_path_is_boolean(self):
+        """
+        Check expected result from a query asking for objects tagged with a
+        boolean value.
+        """
+        boolean_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="bool-tag",
+            description="A tag for annotating boolean data.",
+            type_of="b",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = boolean_tag.annotate(
+            self.admin_user, "test_object1", True
+        )
+        annotation2 = boolean_tag.annotate(
+            self.admin_user, "test_object2", False
+        )
+        annotation1.save()
+        annotation2.save()
+        # Check False
+        lexer = query.QueryLexer()
+        tokens1 = list(lexer.tokenize("test_namespace/bool-tag is False"))
+        parser = query.QueryParser(self.admin_user, lexer.tag_paths)
+        result = parser.parse((x for x in tokens1))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+        # Check True
+        tokens = list(self.lexer.tokenize("test_namespace/bool-tag is true"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_path_ne_scalar(self):
+        """
+        Not equal to (!=) used with a scalar value returns the expected result.
+        """
+        int_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="int-tag",
+            description="A tag for annotating integer data.",
+            type_of="i",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = int_tag.annotate(self.admin_user, "test_object1", 0)
+        annotation2 = int_tag.annotate(self.admin_user, "test_object2", 100)
+        annotation1.save()
+        annotation2.save()
+        tokens = list(self.lexer.tokenize("test_namespace/int-tag != 100"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_path_ge_scalar(self):
+        """
+        Greater than or equal to (>=) used with a scalar value returns the
+        expected result.
+        """
+        float_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="float-tag",
+            description="A tag for annotating floating point data.",
+            type_of="f",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = float_tag.annotate(self.admin_user, "test_object1", 0.0)
+        annotation2 = float_tag.annotate(self.admin_user, "test_object2", 1.23)
+        annotation3 = float_tag.annotate(
+            self.admin_user, "test_object3", -1.23
+        )
+        annotation1.save()
+        annotation2.save()
+        annotation3.save()
+        tokens = list(self.lexer.tokenize("test_namespace/float-tag >= 0.0"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 2)
+        self.assertIn("test_object1", result)
+        self.assertIn("test_object2", result)
+
+    def test_path_le_scalar(self):
+        """
+        Less than or equal to (>=) used with a scalar value returns the
+        expected result.
+        """
+        datetime_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="dt-tag",
+            description="A tag for annotating datetime data.",
+            type_of="d",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = datetime_tag.annotate(
+            self.admin_user,
+            "test_object1",
+            datetime(2020, 8, 19, tzinfo=timezone.utc),
+        )
+        annotation2 = datetime_tag.annotate(
+            self.admin_user,
+            "test_object2",
+            datetime(2019, 8, 19, tzinfo=timezone.utc),
+        )
+        annotation3 = datetime_tag.annotate(
+            self.admin_user,
+            "test_object3",
+            datetime(2021, 8, 19, tzinfo=timezone.utc),
+        )
+        annotation1.save()
+        annotation2.save()
+        annotation3.save()
+        tokens = list(
+            self.lexer.tokenize("test_namespace/dt-tag <= 2020-08-19")
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 2)
+        self.assertIn("test_object1", result)
+        self.assertIn("test_object2", result)
+
+    def test_path_gt_scalar(self):
+        """
+        Great than (>) used with a scalar value returns the expected result.
+        """
+        dur_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="dur-tag",
+            description="A tag for annotating duration data.",
+            type_of="u",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = dur_tag.annotate(
+            self.admin_user, "test_object1", timedelta(seconds=1024)
+        )
+        annotation2 = dur_tag.annotate(
+            self.admin_user, "test_object2", timedelta(days=1024)
+        )
+        annotation1.save()
+        annotation2.save()
+        tokens = list(self.lexer.tokenize("test_namespace/dur-tag > 100d"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+
+    def test_path_lt_scalar(self):
+        """
+        Less than (<) used with a scalar value returns the expected result.
+        """
+        int_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="int-tag",
+            description="A tag for annotating integer data.",
+            type_of="i",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = int_tag.annotate(self.admin_user, "test_object1", 0)
+        annotation2 = int_tag.annotate(self.admin_user, "test_object2", 100)
+        annotation1.save()
+        annotation2.save()
+        tokens = list(self.lexer.tokenize("test_namespace/int-tag < 100"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_path_eq_scalar(self):
+        """
+        Equal to (=) used with a scalar value returns the expected result.
+        """
+        int_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name="int-tag",
+            description="A tag for annotating integer data.",
+            type_of="i",
+            namespace=self.test_namespace,
+            private=False,
+        )
+        annotation1 = int_tag.annotate(self.admin_user, "test_object1", 0)
+        annotation2 = int_tag.annotate(self.admin_user, "test_object2", 100)
+        annotation1.save()
+        annotation2.save()
+        tokens = list(self.lexer.tokenize("test_namespace/int-tag = 100"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
