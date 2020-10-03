@@ -201,6 +201,8 @@ class QueryParser(Parser):
 
     tokens = QueryLexer.tokens
 
+    precedence = (("left", "AND", "OR"),)
+
     def __init__(self, user: models.User, tag_paths: Set[str]):
         super().__init__()
         # tagpaths are used to check read permissions for the query and
@@ -263,6 +265,61 @@ class QueryParser(Parser):
             raise ValueError(f"Unknown tag: {tag_path}")
 
     # Grammar rules and actions.
+
+    @_('"(" expr ")"')  # type: ignore
+    def expr(self, p):  # type: ignore # noqa
+        """
+        Parenthesis contain the scope of the enclosed expression.
+        """
+        return p.expr
+
+    @_("query")  # type: ignore
+    def expr(self, p):  # type: ignore # noqa
+        """
+        A query, on its own, is a valid expression.
+        """
+        return p.query
+
+    @_("expr AND expr")  # type: ignore
+    def expr(self, p):  # type: ignore # noqa
+        """
+        The result sets from two queries can be treated with a logical AND
+        (set intersection).
+        """
+        return p.expr0.intersection(p.expr1)
+
+    @_("expr AND exclusion")  # type: ignore
+    def expr(self, p):  # type: ignore # noqa
+        """
+        The result set from a logical AND can exclude results for objects
+        that have a certain tag.
+        """
+        n, t = p.exclusion.split("/")
+        uuid = utils.get_uuid(n, t)
+        matches = self._evaluate_query(
+            p.exclusion,
+            {
+                "string",
+                "boolean",
+                "integer",
+                "float",
+                "datetime",
+                "duration",
+                "binary",
+                "pointer",
+            },
+            "EXCLUDE",
+            Q(object_id__in=p.expr) & Q(uuid=uuid),
+        )
+        return p.expr.difference(matches)
+
+    @_("expr OR expr")  # type: ignore
+    def expr(self, p):  # type: ignore # noqa
+        """
+        The result sets from two queries can be treated with a logical OR
+        (set union).
+        """
+        return p.expr0.union(p.expr1)
 
     @_("HAS PATH")  # type: ignore
     def query(self, p):  # type: ignore # noqa
@@ -440,13 +497,31 @@ class QueryParser(Parser):
 
 def eval(user: models.User, query: str) -> Set[str]:
     """
-    Evaluate the query string and return a list of matching object_ids.
+    Evaluate the query string and return a set of matching object_ids. Log this
+    query, the user who created it and the result set. If a problem is
+    encountered, log the exception and re-raise.
     """
-    # Tokenize.
-    lexer = QueryLexer()
-    tokens = str(lexer.tokenize(str))
-    # Check tag read permissions.
-    parser = QueryParser(user, lexer.tag_paths)
-    # Parse.
-    result = parser.parse(tokens)
-    return result
+    try:
+        # Tokenize.
+        lexer = QueryLexer()
+        tokens = list(lexer.tokenize(query))
+        if tokens:
+            # Check tag read permissions.
+            parser = QueryParser(user, lexer.tag_paths)
+            # Parse.
+            result = parser.parse((t for t in tokens))
+            logger.msg(
+                "Evaluate query.",
+                user=user.username,
+                query=query,
+                result=list(result),
+            )
+            return result
+        else:
+            raise ValueError("Query does not make sense. Please try again.")
+    except Exception as ex:
+        # Log the exception and re-raise.
+        logger.msg(
+            "Query exception.", user=user.username, query=query, exc_info=ex,
+        )
+        raise ex

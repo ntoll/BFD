@@ -523,6 +523,109 @@ class QueryParserTestCase(TestCase):
         )
         self.assertEqual(expected, msg)
 
+    def test_parenthesis_expr(self):
+        """
+        Parenthesis define scope to produce expected results.
+        """
+        val1 = self.public_tag.annotate(
+            self.admin_user, "test_object1", "val1"
+        )
+        val2 = self.user_tag.annotate(self.admin_user, "test_object1", True)
+        val3 = self.reader_tag.annotate(self.admin_user, "test_object2", 42)
+        val1.save()
+        val2.save()
+        val3.save()
+        tokens = list(
+            self.lexer.tokenize(
+                "has test_namespace/public_tag and "
+                "(test_namespace/reader_tag = 42 or "
+                "test_namespace/user_tag is true)"
+            )
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_and_expr(self):
+        """
+        A logical AND operator returns the expected results.
+        """
+        val1 = self.public_tag.annotate(
+            self.admin_user, "test_object1", "val1"
+        )
+        val2 = self.user_tag.annotate(self.admin_user, "test_object1", True)
+        val3 = self.public_tag.annotate(
+            self.admin_user, "test_object2", "val1"
+        )
+        val1.save()
+        val2.save()
+        val3.save()
+        tokens = list(
+            self.lexer.tokenize(
+                'test_namespace/public_tag is "val1" '
+                "and test_namespace/user_tag is true"
+            )
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_exclude_expr(self):
+        """
+        A logical AND operator to exclude presence of a tag returns the
+        expected results.
+        """
+        val1 = self.public_tag.annotate(
+            self.admin_user, "test_object1", "val1"
+        )
+        val2 = self.user_tag.annotate(self.admin_user, "test_object1", True)
+        val3 = self.public_tag.annotate(
+            self.admin_user, "test_object2", "val1"
+        )
+        val1.save()
+        val2.save()
+        val3.save()
+        tokens = list(
+            self.lexer.tokenize(
+                'test_namespace/public_tag is "val1" '
+                "and missing test_namespace/user_tag"
+            )
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object2", result)
+
+    def test_or_expr(self):
+        """
+        A logical OR operator returns the expected results.
+        """
+        val1 = self.public_tag.annotate(
+            self.admin_user, "test_object1", "val1"
+        )
+        val2 = self.public_tag.annotate(
+            self.admin_user, "test_object2", "val2"
+        )
+        val3 = self.public_tag.annotate(
+            self.admin_user, "test_object3", "val3"
+        )
+        val1.save()
+        val2.save()
+        val3.save()
+        tokens = list(
+            self.lexer.tokenize(
+                'test_namespace/public_tag is "val1" '
+                'or test_namespace/public_tag is "val2"'
+            )
+        )
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        result = parser.parse((x for x in tokens))
+        self.assertEqual(len(result), 2)
+        self.assertIn("test_object1", result)
+        self.assertIn("test_object2", result)
+
     def test_has_path(self):
         """
         Check expected result from a query for the presence of a tag on an
@@ -938,3 +1041,130 @@ class QueryParserTestCase(TestCase):
         result = parser.parse((x for x in tokens))
         self.assertEqual(len(result), 1)
         self.assertIn("test_object2", result)
+
+    def test_syntax_error(self):
+        """
+        A problem query results in a syntax error indicating where the error
+        is.
+        """
+        tokens = list(self.lexer.tokenize("test_namespace/public_tag and 100"))
+        parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
+        with self.assertRaises(SyntaxError) as ex:
+            parser.parse((x for x in tokens))
+        msg = ex.exception.args[0]
+        self.assertEquals(
+            'Cannot parse AND (with value "and") on line 1, character 26.', msg
+        )
+
+
+class EvalTestCase(TestCase):
+    """
+    Ensure the eval function returns the expected results and/or raises the
+    expected errors.
+    """
+
+    def setUp(self):
+        self.lexer = query.QueryLexer()
+        self.site_admin_user = models.User.objects.create_user(
+            username="site_admin_user",
+            email="test@user.com",
+            password="password",
+            is_superuser=True,
+        )
+        self.admin_user = models.User.objects.create_user(
+            username="admin_user", email="test2@user.com", password="password",
+        )
+        self.tag_user = models.User.objects.create_user(
+            username="tag_user", email="test3@user.com", password="password",
+        )
+        self.tag_reader = models.User.objects.create_user(
+            username="tag_reader", email="test4@user.com", password="password",
+        )
+        self.normal_user = models.User.objects.create_user(
+            username="normal_user",
+            email="test5@user.com",
+            password="password",
+        )
+        self.namespace_name = "test_namespace"
+        self.namespace_description = "This is a test namespace."
+        self.test_namespace = logic.create_namespace(
+            self.site_admin_user,
+            self.namespace_name,
+            self.namespace_description,
+            admins=[self.admin_user,],
+        )
+        self.public_tag_name = "public_tag"
+        self.public_tag_description = "This is a public tag."
+        self.public_tag_type_of = "s"
+        self.public_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.public_tag_name,
+            description=self.public_tag_description,
+            type_of=self.public_tag_type_of,
+            namespace=self.test_namespace,
+            private=False,
+        )
+        self.user_tag_name = "user_tag"
+        self.user_tag_description = "This is a user tag."
+        self.user_tag_type_of = "b"
+        self.user_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.user_tag_name,
+            description=self.user_tag_description,
+            type_of=self.user_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            users=[self.tag_user,],
+        )
+        self.reader_tag_name = "reader_tag"
+        self.reader_tag_description = "This is a reader tag."
+        self.reader_tag_type_of = "i"
+        self.reader_tag = logic.create_tag(
+            user=self.site_admin_user,
+            name=self.reader_tag_name,
+            description=self.reader_tag_description,
+            type_of=self.reader_tag_type_of,
+            namespace=self.test_namespace,
+            private=True,
+            readers=[self.tag_reader,],
+        )
+
+    def test_eval_good_case(self):
+        """
+        A valid query produces the expected result.
+        """
+        val1 = self.public_tag.annotate(
+            self.admin_user, "test_object1", "val1"
+        )
+        val2 = self.user_tag.annotate(self.admin_user, "test_object1", True)
+        val3 = self.reader_tag.annotate(self.admin_user, "test_object2", 42)
+        val1.save()
+        val2.save()
+        val3.save()
+        q = (
+            "has test_namespace/public_tag and "
+            "(test_namespace/reader_tag = 42 or "
+            "test_namespace/user_tag is true)"
+        )
+        result = query.eval(self.admin_user, q)
+        self.assertEqual(len(result), 1)
+        self.assertIn("test_object1", result)
+
+    def test_eval_empty_query(self):
+        """
+        """
+        with self.assertRaises(ValueError) as ex:
+            query.eval(self.admin_user, "")
+        msg = ex.exception.args[0]
+        self.assertEquals("Query does not make sense. Please try again.", msg)
+
+    def test_eval_syntax_error(self):
+        """
+        A problem query results in a syntax error with a helpful message.
+        """
+        with self.assertRaises(SyntaxError) as ex:
+            query.eval(self.admin_user, "test_namespace/public_tag and 100")
+        msg = ex.exception.args[0]
+        self.assertEquals(
+            'Cannot parse AND (with value "and") on line 1, character 26.', msg
+        )
