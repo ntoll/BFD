@@ -1057,9 +1057,9 @@ class QueryParserTestCase(TestCase):
         )
 
 
-class EvalTestCase(TestCase):
+class EvaluateTestCase(TestCase):
     """
-    Ensure the eval function returns the expected results and/or raises the
+    Ensure the evaluate function returns the expected results and/or raises the
     expected errors.
     """
 
@@ -1129,7 +1129,7 @@ class EvalTestCase(TestCase):
             readers=[self.tag_reader,],
         )
 
-    def test_eval_good_case(self):
+    def test_evaluate_good_case(self):
         """
         A valid query produces the expected result.
         """
@@ -1146,24 +1146,27 @@ class EvalTestCase(TestCase):
             "(test_namespace/reader_tag = 42 or "
             "test_namespace/user_tag is true)"
         )
-        result = query.eval(self.admin_user, q)
+        result = query.evaluate(self.admin_user, q)
         self.assertEqual(len(result), 1)
         self.assertIn("test_object1", result)
 
-    def test_eval_empty_query(self):
+    def test_evaluate_empty_query(self):
         """
+        An empty query results in a ValueError exception.
         """
         with self.assertRaises(ValueError) as ex:
-            query.eval(self.admin_user, "")
+            query.evaluate(self.admin_user, "")
         msg = ex.exception.args[0]
         self.assertEquals("Query does not make sense. Please try again.", msg)
 
-    def test_eval_syntax_error(self):
+    def test_evaluate_syntax_error(self):
         """
         A problem query results in a syntax error with a helpful message.
         """
         with self.assertRaises(SyntaxError) as ex:
-            query.eval(self.admin_user, "test_namespace/public_tag and 100")
+            query.evaluate(
+                self.admin_user, "test_namespace/public_tag and 100"
+            )
         msg = ex.exception.args[0]
         self.assertEquals(
             'Cannot parse AND (with value "and") on line 1, character 26.', msg

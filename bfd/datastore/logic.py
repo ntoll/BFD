@@ -24,7 +24,7 @@ from django.contrib.auth.models import User  # type: ignore
 from django.utils.translation import gettext_lazy as _  # type: ignore
 from datastore import models
 
-# from datastore.query import parse
+# from datastore.query import evaluate
 
 
 logger = structlog.get_logger()

@@ -495,7 +495,7 @@ class QueryParser(Parser):
         raise SyntaxError(msg)
 
 
-def eval(user: models.User, query: str) -> Set[str]:
+def evaluate(user: models.User, query: str) -> Set[str]:
     """
     Evaluate the query string and return a set of matching object_ids. Log this
     query, the user who created it and the result set. If a problem is
