@@ -151,6 +151,8 @@ class NamespaceTestCase(TestCase):
         username.
         """
         name = self.admin_user.username
+        # Delete the namespace created when the user was created.
+        models.Namespace.objects.get(name=name).delete()
         description = "This is a test namespace."
         mock_logger = mock.MagicMock()
         with mock.patch("datastore.logic.logger", mock_logger):
@@ -1250,12 +1252,14 @@ class TagTestCase(TestCase):
         In this case, if a user is an admin of the parent namespace, the
         response is always True.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertTrue(logic.check_users_tags(self.admin_user, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        self.assertTrue(logic.check_users_tags(self.admin_user, tag_set))
 
     def test_check_users_tags_as_site_admin(self):
         """
@@ -1265,12 +1269,14 @@ class TagTestCase(TestCase):
 
         In this case, if a user is a site admin so the response is always True.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertTrue(logic.check_users_tags(self.site_admin_user, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        self.assertTrue(logic.check_users_tags(self.site_admin_user, tag_set))
 
     def test_check_users_tags_as_normal_user(self):
         """
@@ -1281,12 +1287,14 @@ class TagTestCase(TestCase):
         In this case, if a user is a normal user and the tags are not in scope
         with them, so the result will be False.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertFalse(logic.check_users_tags(self.normal_user, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        self.assertFalse(logic.check_users_tags(self.normal_user, tag_set))
 
     def test_check_users_tags_as_tag_user(self):
         """
@@ -1298,15 +1306,15 @@ class TagTestCase(TestCase):
         collection contains a tag for which the user doesn't have the "user"
         role, then the response if False.
         """
-        tag_list = [
-            (self.namespace_name, self.user_tag_name),
-        ]
-        self.assertTrue(logic.check_users_tags(self.tag_user, tag_list))
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-        ]
-        self.assertFalse(logic.check_users_tags(self.tag_user, tag_list))
+        tag_set = set([f"{self.namespace_name}/{self.user_tag_name}",])
+        self.assertTrue(logic.check_users_tags(self.tag_user, tag_set))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+            ]
+        )
+        self.assertFalse(logic.check_users_tags(self.tag_user, tag_set))
 
     def test_check_users_tags_with_duplicate_tags(self):
         """
@@ -1317,14 +1325,16 @@ class TagTestCase(TestCase):
         If there are duplicates of the same tag, this doesn't effect the
         outcome.
         """
-        tag_list = [
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.user_tag_name),
-        ]
-        self.assertTrue(logic.check_users_tags(self.tag_user, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+            ]
+        )
+        self.assertTrue(logic.check_users_tags(self.tag_user, tag_set))
 
     def test_check_users_tags_as_tag_reader(self):
         """
@@ -1337,10 +1347,8 @@ class TagTestCase(TestCase):
         associated with it), unless, of course, they are also have the "users"
         role.
         """
-        tag_list = [
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertFalse(logic.check_users_tags(self.tag_reader, tag_list))
+        tag_set = set([f"{self.namespace_name}/{self.reader_tag_name}",])
+        self.assertFalse(logic.check_users_tags(self.tag_reader, tag_set))
 
     def test_check_readers_tags_as_admin_user(self):
         """
@@ -1351,12 +1359,14 @@ class TagTestCase(TestCase):
         In this case, if a user is an admin of the parent namespace, the
         response is always True.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertTrue(logic.check_readers_tags(self.admin_user, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        self.assertTrue(logic.check_readers_tags(self.admin_user, tag_set))
 
     def test_check_readers_tags_as_site_admin(self):
         """
@@ -1366,13 +1376,15 @@ class TagTestCase(TestCase):
 
         In this case, if a user is a site admin so the response is always True.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
         self.assertTrue(
-            logic.check_readers_tags(self.site_admin_user, tag_list)
+            logic.check_readers_tags(self.site_admin_user, tag_set)
         )
 
     def test_check_readers_tags_as_normal_user(self):
@@ -1384,12 +1396,14 @@ class TagTestCase(TestCase):
         In this case, if a user is a normal user and the tags are not in scope
         with them, so the result will be False.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertFalse(logic.check_readers_tags(self.normal_user, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        self.assertFalse(logic.check_readers_tags(self.normal_user, tag_set))
 
     def test_check_readers_tags_as_normal_user_public_tag(self):
         """
@@ -1400,10 +1414,8 @@ class TagTestCase(TestCase):
         In this case, if a user is a normal user and the tags are all public
         the result will be True.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-        ]
-        self.assertTrue(logic.check_readers_tags(self.normal_user, tag_list))
+        tag_set = set([f"{self.namespace_name}/{self.public_tag_name}",])
+        self.assertTrue(logic.check_readers_tags(self.normal_user, tag_set))
 
     def test_check_readers_tags_as_tag_reader(self):
         """
@@ -1415,15 +1427,15 @@ class TagTestCase(TestCase):
         tag collection contains a tag for which the user doesn't have the
         "reader" role, then the response if False.
         """
-        tag_list = [
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_list))
-        tag_list = [
-            (self.namespace_name, self.reader_tag_name),
-            (self.namespace_name, self.user_tag_name),
-        ]
-        self.assertFalse(logic.check_readers_tags(self.tag_reader, tag_list))
+        tag_set = set([f"{self.namespace_name}/{self.reader_tag_name}",])
+        self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_set))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.reader_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+            ]
+        )
+        self.assertFalse(logic.check_readers_tags(self.tag_reader, tag_set))
 
     def test_check_readers_tags_with_duplicate_tags(self):
         """
@@ -1434,15 +1446,17 @@ class TagTestCase(TestCase):
         If there are duplicates of the same tag, this doesn't effect the
         outcome.
         """
-        tag_list = [
-            (self.namespace_name, self.reader_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_list))
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.reader_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_set))
 
     def test_check_readers_tags_as_tag_user(self):
         """
@@ -1454,7 +1468,5 @@ class TagTestCase(TestCase):
         users can always read tags for which they have permission to annotate
         data.
         """
-        tag_list = [
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        self.assertFalse(logic.check_readers_tags(self.tag_user, tag_list))
+        tag_set = set([f"{self.namespace_name}/{self.reader_tag_name}",])
+        self.assertFalse(logic.check_readers_tags(self.tag_user, tag_set))

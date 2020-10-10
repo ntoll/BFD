@@ -17,8 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import time
-from typing import Union, Dict, Type, Set, Sequence, Tuple
-from . import utils
+from typing import Union, Dict, Type, Set
 from datetime import datetime, timedelta
 from django.core.files import uploadedfile  # type: ignore
 from django.apps import apps  # type: ignore
@@ -58,9 +57,15 @@ class BFDUserManager(UserManager):
     ):
         """
         Create and save a user with the given username, email, and password.
+
+        In addition, check, create and save a namespace for the new user.
         """
         if not username:
             raise ValueError(_("The given username must be set"))
+        if Namespace.objects.filter(name=username).exists():
+            raise ValueError(
+                _("The namespace for that username is already taken.")
+            )
         email = self.normalize_email(email)
         # Lookup the real model class from the global app registry so this
         # manager method can be used in migrations. This is fine because
@@ -73,6 +78,10 @@ class BFDUserManager(UserManager):
         user.password = make_password(password)
         user.clean_fields()  # Validate the username and email.
         user.save(using=self._db)
+        # Create the user's default namespace.
+        Namespace.objects.create_namespace(
+            username, f"The personal namespace for the user: {username}.", user
+        )
         return user
 
 
@@ -112,10 +121,11 @@ class AbstractBaseValue(models.Model):
         allow_unicode=True,
         help_text=_("The unique unicode identifier for the object."),
     )
-    uuid = models.UUIDField(
+    tag_path = models.CharField(
         db_index=True,
         editable=False,
-        help_text=_("A UUID representing the namespace/tag path."),
+        max_length=129,
+        help_text=_("A string representing the namespace/tag path."),
     )
     namespace = models.ForeignKey(
         "Namespace",
@@ -138,7 +148,7 @@ class AbstractBaseValue(models.Model):
     )
 
     @property
-    def path(self) -> str:
+    def full_path(self) -> str:
         """
         Return the human readable path for the value.
         """
@@ -255,13 +265,12 @@ class TagManager(models.Manager):
             raise PermissionError(
                 _("User not an admin of the parent namespace.")
             )
-        uuid = utils.get_uuid(namespace.name, name)
         tag = self.create(
             name=name,
             description=description,
             type_of=type_of,
             namespace=namespace,
-            uuid=uuid,
+            path=f"{namespace.name}/{name}",
             private=private,
             created_by=user,
             updated_by=user,
@@ -279,6 +288,8 @@ class Tag(models.Model):
     name = models.SlugField(
         max_length=64,
         allow_unicode=True,
+        db_index=True,
+        editable=False,
         help_text=_(
             "The tag's name identifying what is being tagged to objects."
         ),
@@ -290,17 +301,20 @@ class Tag(models.Model):
     type_of = models.CharField(
         choices=VALID_DATA_TYPES,
         max_length=1,
+        editable=False,
         help_text=_("Defines the type of data this tag stores."),
     )
     namespace = models.ForeignKey(
         "Namespace",
         on_delete=models.CASCADE,
+        editable=False,
         help_text=_("The namespace to which this tag belongs."),
     )
-    uuid = models.UUIDField(
+    path = models.CharField(
         db_index=True,
         editable=False,
-        help_text=_("A UUID representing the namespace/tag path."),
+        max_length=129,
+        help_text=_("A string representation of the namespace/tag path."),
     )
     private = models.BooleanField(
         default=False,
@@ -340,13 +354,6 @@ class Tag(models.Model):
     )
 
     objects = TagManager()
-
-    @property
-    def path(self) -> str:
-        """
-        Return the human readable path for the tag.
-        """
-        return f"{self.namespace.name}/{self.name}"
 
     def is_reader(self, user: User) -> bool:
         """
@@ -397,10 +404,9 @@ class Tag(models.Model):
         cls = VALUE_TYPE_MAP.get(self.type_of)
         if cls:
             if isinstance(value, cls.python_type()):
-                uuid = utils.get_uuid(self.namespace.name, self.name)
                 instance = cls(
                     object_id=object_id,
-                    uuid=uuid,
+                    tag_path=self.path,
                     namespace=self.namespace,
                     tag=self,
                     updated_by=user,
@@ -702,23 +708,19 @@ VALUE_TYPE_MAP: Dict["str", Type[AbstractBaseValue]] = {
 }
 
 
-def get_users_query(
-    user: User, tags: Sequence[Tuple[str, str]]
-) -> models.query.QuerySet:
+def get_users_query(user: User, tag_paths: Set[str]) -> models.query.QuerySet:
     """
-    Given a list of namespace/tag tuples of interest, return a query to get
+    Given a list of namespace/tag paths of interest, return a query to get
     all the tags in that list that the referenced user is allowed to make use
     of to annotate values onto objects.
     """
-    # Gather unique UUIDs for each namespace/tag.
-    uuids = [utils.get_uuid(namespace, tag) for namespace, tag in tags]
     # Find the number of matching tags that are either public, where the user
     # has the role "user" associated with the tag or where the user is an admin
     # of the parent namespace. Working in this way means we only have a single
     # lazy database query that can be further modified before being executed.
     # Performance of this check is therefore relatively quick since it's done
     # at the database layer, rather than in Python.
-    query = Tag.objects.filter(uuid__in=uuids)
+    query = Tag.objects.filter(path__in=tag_paths)
     if not user.is_superuser:
         query = query.filter(
             models.Q(users__id=user.id)
@@ -728,22 +730,20 @@ def get_users_query(
 
 
 def get_readers_query(
-    user: User, tags: Sequence[Tuple[str, str]]
+    user: User, tag_paths: Set[str]
 ) -> models.query.QuerySet:
     """
-    Given a list of namespace/tag tuples of interest, return a query to get all
+    Given a list of namespace/tag paths of interest, return a query to get all
     the tags in that list that the referenced user is allowed to use to read
     values from objects.
     """
-    # Gather unique UUIDs for each namespace/tag.
-    uuids = [utils.get_uuid(namespace, tag) for namespace, tag in tags]
     # Find the number of matching tags that are either public, where the user
     # has the roles "user" or "reader" associated with the tag or where the
     # user is an admin of the parent namespace. Working in this way means we
     # only have a single lazy database query that can be further modified
     # before being executed. Performance of this check is therefore relatively
     # quick since it's done at the database layer, rather than in Python.
-    query = Tag.objects.filter(uuid__in=uuids)
+    query = Tag.objects.filter(path__in=tag_paths)
     if not user.is_superuser:
         query = query.filter(
             models.Q(private=False)

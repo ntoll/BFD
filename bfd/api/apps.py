@@ -17,5 +17,5 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 from django.apps import AppConfig
 
 
-class DatastoreConfig(AppConfig):
-    name = "datastore"
+class ApiConfig(AppConfig):
+    name = "api"

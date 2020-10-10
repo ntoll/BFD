@@ -17,7 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import structlog  # type: ignore
-from typing import Sequence, Union, List, Dict, Tuple
+from typing import Sequence, Union, List, Dict, Set
 from django.db.models import Q  # type: ignore
 from django.http import HttpRequest  # type: ignore
 from django.contrib.auth.models import User  # type: ignore
@@ -93,6 +93,7 @@ def get_namespace(user: User, name: str) -> Dict:
         result["created_on"] = str(n.created_on)
         result["updated_by"] = n.updated_by.username
         result["updated_on"] = str(n.updated_on)
+        result["admins"] = [admin.username for admin in n.admins.all()]
         for tag in n.tag_set.all():
             tags.append(
                 {
@@ -503,9 +504,7 @@ def remove_tag_readers(
         )
 
 
-def check_users_tags(
-    user: models.User, tags: Sequence[Tuple[str, str]]
-) -> bool:
+def check_users_tags(user: models.User, tags: Set[str]) -> bool:
     """
     Given a list of namespace/tag tuples, return a boolean to indicate that the
     referenced user is allowed to use such tags to annotate values onto
@@ -522,9 +521,7 @@ def check_users_tags(
     return tag_matches == len(set(tags))
 
 
-def check_readers_tags(
-    user: models.User, tags: Sequence[Tuple[str, str]]
-) -> bool:
+def check_readers_tags(user: models.User, tags: Set[str]) -> bool:
     """
     Given a list of namespace/tag tuples, return a boolean to indicate that the
     referenced user is allowed to use such tags to read the values annotated

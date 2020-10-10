@@ -21,11 +21,9 @@ from unittest import mock
 from datetime import datetime, timedelta, timezone
 from django.test import TestCase
 from datastore import models
-from datastore import utils
 from django.core.exceptions import ValidationError
 from django.core.files import uploadedfile
 from django.db.models import Q
-from datastore.utils import get_uuid
 from datastore import logic
 
 
@@ -46,9 +44,15 @@ class UserTestCase(TestCase):
         user = models.User.objects.create_user(
             username="test_user", email="test@user.com", password="password"
         )
-        # Ensure it's in the database.
+        # Ensure they're in the database.
         u = models.User.objects.get(username="test_user")
         self.assertEqual(u.email, user.email)
+        # Ensure they have a default namespace.
+        ns = models.Namespace.objects.get(name="test_user")
+        self.assertEqual(
+            ns.description, "The personal namespace for the user: test_user."
+        )
+        self.assertIn(u, ns.admins.all())
 
     def test_create_user_no_username(self):
         """
@@ -83,6 +87,21 @@ class UserTestCase(TestCase):
                 password="password",
             )
 
+    def test_create_user_namespace_taken(self):
+        """
+        If the new user has a username that's also an existing namespace, then
+        a ValueError is raised.
+        """
+        models.User.objects.create_user(
+            username="test_user", email="test@user.com", password="password"
+        )
+        with self.assertRaises(ValueError):
+            models.User.objects.create_user(
+                username="test_user",
+                email="test@user.com",
+                password="password",
+            )
+
 
 class NamespaceTestCase(TestCase):
     """
@@ -99,11 +118,9 @@ class NamespaceTestCase(TestCase):
         Ensure the user who creates the namespace is assigned the expected
         roles.
         """
-        name = "my_namespace"
-        description = "This is a test namespace."
-        ns = models.Namespace.objects.create_namespace(
-            name, description, self.user
-        )
+        name = self.user.username
+        description = "The personal namespace for the user: test_user."
+        ns = models.Namespace.objects.get(name=self.user.username)
         self.assertEqual(ns.name, name)
         self.assertEqual(ns.description, description)
         self.assertIn(self.user, ns.admins.all())
@@ -140,7 +157,6 @@ class TagTestCase(TestCase):
         name = "my_tag"
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[0][0]
-        uuid = get_uuid(self.namespace.name, name)
         private = False
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
@@ -154,7 +170,7 @@ class TagTestCase(TestCase):
         self.assertIsInstance(tag.created_on, datetime)
         self.assertEqual(tag.updated_by, self.user)
         self.assertIsInstance(tag.updated_on, datetime)
-        self.assertEqual(tag.uuid, uuid)
+        self.assertEqual(tag.path, f"{self.namespace.name}/{name}")
         self.assertNotIn(self.user, tag.users.all())
         self.assertNotIn(self.user, tag.readers.all())
 
@@ -166,7 +182,6 @@ class TagTestCase(TestCase):
         name = "my_tag"
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[0][0]
-        uuid = get_uuid(self.namespace.name, name)
         private = True
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
@@ -180,7 +195,7 @@ class TagTestCase(TestCase):
         self.assertIsInstance(tag.created_on, datetime)
         self.assertEqual(tag.updated_by, self.user)
         self.assertIsInstance(tag.updated_on, datetime)
-        self.assertEqual(tag.uuid, uuid)
+        self.assertEqual(tag.path, f"{self.namespace.name}/{name}")
         self.assertIn(self.user, tag.users.all())
 
     def test_create_tag_wrong_user(self):
@@ -376,7 +391,6 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[0][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
@@ -384,7 +398,7 @@ class TagTestCase(TestCase):
             self.user, "an-arbitrary-object", "Hello world!"
         )
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -400,13 +414,12 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[1][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
         annotation = tag.annotate(self.user, "an-arbitrary-object", True)
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -422,13 +435,12 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[2][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
         annotation = tag.annotate(self.user, "an-arbitrary-object", 1234)
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -444,13 +456,12 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[3][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
         annotation = tag.annotate(self.user, "an-arbitrary-object", 1.234)
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -466,14 +477,13 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[4][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
         now = datetime.now()
         annotation = tag.annotate(self.user, "an-arbitrary-object", now)
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -489,7 +499,6 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[5][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
@@ -497,7 +506,7 @@ class TagTestCase(TestCase):
             self.user, "an-arbitrary-object", timedelta(seconds=1024)
         )
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -513,7 +522,6 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[6][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
@@ -522,7 +530,7 @@ class TagTestCase(TestCase):
         )
         annotation = tag.annotate(self.user, "an-arbitrary-object", val)
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -538,14 +546,13 @@ class TagTestCase(TestCase):
         description = "This is a test tag."
         type_of = models.VALID_DATA_TYPES[7][0]
         private = False
-        uuid = utils.get_uuid(self.namespace.name, name)
         tag = models.Tag.objects.create_tag(
             name, description, type_of, self.namespace, private, self.user
         )
         val = "https://ntoll.org"  # pointer is a URL to something.
         annotation = tag.annotate(self.user, "an-arbitrary-object", val)
         self.assertEqual(annotation.object_id, "an-arbitrary-object")
-        self.assertEqual(annotation.uuid, uuid)
+        self.assertEqual(annotation.tag_path, f"{self.namespace.name}/{name}")
         self.assertEqual(annotation.namespace, self.namespace)
         self.assertEqual(annotation.tag, tag)
         self.assertEqual(annotation.updated_by, self.user)
@@ -871,15 +878,14 @@ class AbstractBaseValueTestCase(TestCase):
             self.user,
         )
 
-    def test_created_value_has_path(self):
+    def test_created_value_has_full_path(self):
         """
         Ensure a child of ABV can create objects as expected.
         """
         object_id = "a_test_object"
-        uuid = get_uuid(self.namespace.name, self.tag.name)
         val = models.StringValue(
             object_id=object_id,
-            uuid=uuid,
+            tag_path=f"{self.namespace.name}/{self.tag.name}",
             namespace=self.namespace,
             tag=self.tag,
             updated_by=self.user,
@@ -887,7 +893,7 @@ class AbstractBaseValueTestCase(TestCase):
         )
         val.save()
         expected = f"{object_id}/{self.namespace.name}/{self.tag.name}"
-        self.assertEqual(val.path, expected)
+        self.assertEqual(val.full_path, expected)
 
     def test_python_type_not_implemented(self):
         """
@@ -945,10 +951,9 @@ class UploadToTestCase(TestCase):
         Ensure a child of ABV can create objects as expected.
         """
         object_id = "a_test_object"
-        uuid = get_uuid(self.namespace.name, self.tag.name)
         val = models.BinaryValue(
             object_id=object_id,
-            uuid=uuid,
+            tag_path=f"{self.namespace.name}/{self.tag.name}",
             namespace=self.namespace,
             tag=self.tag,
             updated_by=self.user,
@@ -973,7 +978,7 @@ class UploadToTestCase(TestCase):
 
 class TagQueryTestCase(TestCase):
     """
-    Exercises the functions used to bulk return tags by path/uuid.
+    Exercises the functions used to bulk return tags by path.
     """
 
     def setUp(self):
@@ -1049,12 +1054,14 @@ class TagQueryTestCase(TestCase):
 
         Site admin users always match all tags.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_users_query(self.site_admin_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_users_query(self.site_admin_user, tag_set)
         self.assertEqual(3, len(result))
         self.assertIn(self.public_tag, result)
         self.assertIn(self.user_tag, result)
@@ -1069,12 +1076,14 @@ class TagQueryTestCase(TestCase):
         Users who are administrators of the parent namespace always match all
         child tags.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_users_query(self.admin_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_users_query(self.admin_user, tag_set)
         self.assertEqual(3, len(result))
         self.assertIn(self.public_tag, result)
         self.assertIn(self.user_tag, result)
@@ -1088,12 +1097,14 @@ class TagQueryTestCase(TestCase):
 
         A user can only see tags for which it has the "user" role.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_users_query(self.tag_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_users_query(self.tag_user, tag_set)
         self.assertEqual(1, len(result))
         self.assertIn(self.user_tag, result)
 
@@ -1106,12 +1117,14 @@ class TagQueryTestCase(TestCase):
         If a user has a reader role associated with a private tag, it makes no
         difference to their ability to be a user of that tag.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_users_query(self.tag_reader, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_users_query(self.tag_reader, tag_set)
         self.assertEqual(0, len(result))
 
     def test_get_users_query_as_normal_user(self):
@@ -1122,12 +1135,14 @@ class TagQueryTestCase(TestCase):
 
         Users without the "users" role, don't get any matches.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_users_query(self.normal_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_users_query(self.normal_user, tag_set)
         self.assertEqual(0, len(result))
 
     def test_get_readers_query_as_site_admin(self):
@@ -1139,12 +1154,14 @@ class TagQueryTestCase(TestCase):
 
         A site admin can always use tags to read values.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_readers_query(self.site_admin_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_readers_query(self.site_admin_user, tag_set)
         self.assertEqual(3, len(result))
         self.assertIn(self.public_tag, result)
         self.assertIn(self.user_tag, result)
@@ -1160,12 +1177,14 @@ class TagQueryTestCase(TestCase):
         If a user has administrator role for the parent namespace, they can
         always use tags to read values.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_readers_query(self.admin_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_readers_query(self.admin_user, tag_set)
         self.assertEqual(3, len(result))
         self.assertIn(self.public_tag, result)
         self.assertIn(self.user_tag, result)
@@ -1180,12 +1199,14 @@ class TagQueryTestCase(TestCase):
 
         A user with readers role on a tag can read using that tag.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_readers_query(self.tag_reader, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_readers_query(self.tag_reader, tag_set)
         self.assertEqual(2, len(result))
         self.assertIn(self.public_tag, result)
         self.assertIn(self.reader_tag, result)
@@ -1199,12 +1220,14 @@ class TagQueryTestCase(TestCase):
 
         A user with users role on a tag can also read using that tag.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_readers_query(self.tag_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_readers_query(self.tag_user, tag_set)
         self.assertEqual(2, len(result))
         self.assertIn(self.public_tag, result)
         self.assertIn(self.user_tag, result)
@@ -1219,11 +1242,13 @@ class TagQueryTestCase(TestCase):
         Normal users with no particular role only see public tags with which to
         read values.
         """
-        tag_list = [
-            (self.namespace_name, self.public_tag_name),
-            (self.namespace_name, self.user_tag_name),
-            (self.namespace_name, self.reader_tag_name),
-        ]
-        result = models.get_readers_query(self.normal_user, tag_list)
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+                f"{self.namespace_name}/{self.user_tag_name}",
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
+        result = models.get_readers_query(self.normal_user, tag_set)
         self.assertEqual(1, len(result))
         self.assertIn(self.public_tag, result)

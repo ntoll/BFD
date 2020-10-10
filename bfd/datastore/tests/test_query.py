@@ -421,8 +421,8 @@ class QueryParserTestCase(TestCase):
         list(self.lexer.tokenize('test_namespace/public_tag matches "hello"'))
         parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
         self.assertEqual(len(parser.tags), 1)
-        self.assertIn(self.public_tag.uuid, parser.tags)
-        self.assertEqual(parser.tags[self.public_tag.uuid], self.public_tag)
+        self.assertIn(self.public_tag.path, parser.tags)
+        self.assertEqual(parser.tags[self.public_tag.path], self.public_tag)
 
     def test_init_invisible_tag(self):
         """

@@ -21,12 +21,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 """
 import structlog  # type: ignore
 from datetime import timedelta
-from typing import List, Set, Tuple, Union
+from typing import Set, Union
 from sly import Lexer, Parser  # type: ignore
 from dateutil.parser import parse as datetime_parser  # type: ignore
 from django.db.models import Q  # type: ignore
 from django.utils import timezone  # type: ignore
-from datastore import utils
 from datastore import models
 
 
@@ -207,27 +206,21 @@ class QueryParser(Parser):
         super().__init__()
         # tagpaths are used to check read permissions for the query and
         # retrieve tag instances to use to get the result sets.
-        tag_tuples: List[Tuple[str, str]] = []
-        for path in tag_paths:
-            n, t = path.split("/")
-            tag_tuples.append((n, t))
-        tags_to_read = models.get_readers_query(user, tag_tuples)
+        tags_to_read = models.get_readers_query(user, tag_paths)
         self.tags = {}
         for tag in tags_to_read:
             # self.tags contains tag instances to use to create result sets
             # from the database.
-            self.tags[tag.uuid] = tag
+            self.tags[tag.path] = tag
         if len(tags_to_read) != len(tag_paths):
             # The user doesn't have permission to read certain tags, or the
             # referenced tags do not exist. So raise a value error referencing
             # the problem tags so the user has a clue where the problem may be
             # found.
             missing_tags = []
-            for tag in tag_paths:
-                n, t = path.split("/")
-                uuid = utils.get_uuid(n, t)
-                if uuid not in self.tags:
-                    missing_tags.append(tag)
+            for tag_path in tag_paths:
+                if tag_path not in self.tags:
+                    missing_tags.append(tag_path)
             raise ValueError(
                 "The following tags cannot be read: " + ", ".join(missing_tags)
             )
@@ -249,9 +242,7 @@ class QueryParser(Parser):
 
         Returns a set containing the object_ids of matches.
         """
-        n, t = tag_path.split("/")
-        uuid = utils.get_uuid(n, t)
-        tag = self.tags.get(uuid)
+        tag = self.tags.get(tag_path)
         if tag:
             type_of = tag.get_type_of_display()
             if type_of in applies_to:
@@ -294,8 +285,6 @@ class QueryParser(Parser):
         The result set from a logical AND can exclude results for objects
         that have a certain tag.
         """
-        n, t = p.exclusion.split("/")
-        uuid = utils.get_uuid(n, t)
         matches = self._evaluate_query(
             p.exclusion,
             {
@@ -309,7 +298,7 @@ class QueryParser(Parser):
                 "pointer",
             },
             "EXCLUDE",
-            Q(object_id__in=p.expr) & Q(uuid=uuid),
+            Q(object_id__in=p.expr) & Q(tag_path=p.exclusion),
         )
         return p.expr.difference(matches)
 
@@ -326,8 +315,6 @@ class QueryParser(Parser):
         """
         Query for presence of a tag on an object.
         """
-        namespace, tag = p.PATH.split("/")
-        uuid = utils.get_uuid(namespace, tag)
         return self._evaluate_query(
             p.PATH,
             {
@@ -341,7 +328,7 @@ class QueryParser(Parser):
                 "pointer",
             },
             p.HAS,
-            Q(uuid__exact=uuid),
+            Q(tag_path__exact=p.PATH),
         )
 
     @_("PATH IS MIME")  # type: ignore

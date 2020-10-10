@@ -1,5 +1,5 @@
 """
-Tests exercising the utils module.
+URL pattern matching for the REST API endpoints.
 
 Copyright (C) 2020 Nicholas H.Tollervey (ntoll@ntoll.org).
 
@@ -15,24 +15,16 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>
+
 """
-import uuid
-from django.test import TestCase
-from django.conf import settings
-from datastore import utils
+from django.urls import path
+from rest_framework.urlpatterns import format_suffix_patterns
+from api import views
 
+urlpatterns = [
+    path("u/<slug:username>", views.user_detail),
+    path("n/new", views.new_namespace),
+    path("n/<slug:namespace>", views.namespace_detail),
+]
 
-class UtilsTestCase(TestCase):
-    """
-    Tests relating to the global utility funtions.
-    """
-
-    def test_get_uuid(self):
-        """
-        Ensure the get_uuid method returns a UUID5 based upon the
-        settings.BFD_UUID and the passed in namespace and tag name.
-        """
-        namespace = "my_namespace"
-        tag = "my_tag"
-        expected = uuid.uuid5(uuid.uuid5(settings.BFD_UUID, namespace), tag)
-        self.assertEqual(utils.get_uuid(namespace, tag), expected)
+urlpatterns = format_suffix_patterns(urlpatterns)

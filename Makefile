@@ -49,7 +49,7 @@ test: clean
 	cd bfd && python manage.py test
 
 coverage: clean
-	cd bfd && coverage run --omit=manage.py,bfd/*,datastore/apps.py,datastore/migrations/*,datastore/tests/* --source='.' manage.py test
+	cd bfd && coverage run --omit=manage.py,bfd/*,datastore/apps.py,datastore/migrations/*,datastore/tests/*,api/apps.py,api/urls.py,api/migrations/*,api/tests/* --source='.' manage.py test
 	cd bfd && coverage report -m
 
 tidy: clean
