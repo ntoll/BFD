@@ -1,4 +1,11 @@
-"Commons Clause" License Condition v1.0
+# License
+
+The Big Friendly Datastore is licensed under the Apache License (version 2)
+modified by the "Commons Clause" License Condition v1.0.
+
+Both are reproduced below.
+
+## Commons Clause License Condition v1.0
 
 The Software is provided to you by the Licensor under the License, as defined
 below, subject to the following condition.
