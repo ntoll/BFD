@@ -17,7 +17,8 @@ with respect, humour and intelligence wins every time.
 * If your day job isn't code, get involved.
 * This isn't a group of experts, just people. Get involved!
 
-We expect contributors to follow the spirit of [being together](CODE_OF_CONDUCT.md).
+We expect contributors to follow the spirit of
+[being together](CODE_OF_CONDUCT.md).
 
 Feedback may be given for contributions and, where necessary, changes will
 be politely requested and discussed with the originating author. Respectful

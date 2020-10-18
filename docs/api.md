@@ -16,14 +16,14 @@ The five core concepts needed to understand the API are:
    given a namespace with the same name as their username. Further namespaces
    may be created to represent organisational units. Namespaces must have at
    least one user, and potentially many users, to act as administrators. They
-   define the tags and permissions relating to tags that belong to the
+   define the tags and the permissions relating to tags that belong to the
    Namespace.
 3. *Tags* - define what is annotated to objects. Tags belong to a parent
    namespace, so it's possible to understand who is annotating what within the
    BFD. Tags have a name that is unique within the parent namespace and a
    free text description to provide context. Tags can be either public (anyone
    can read values associated with them) or private (only whitelisted
-   individuals can read valueas annotated with them). Furthermore, only
+   individuals can read values annotated with them). Furthermore, only
    namespace admins or those users listed in a "users" whitelist are able to
    use the tag to annotate values onto an object. Finally, tags are typed so
    if a tag is for storing a date-time value, an operation to use it to
