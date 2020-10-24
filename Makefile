@@ -33,7 +33,7 @@ run: clean
 ifeq ($(VIRTUAL_ENV),)
 	@echo "\n\nCannot run BFD. Your Python virtualenv is not activated."
 else
-	hypercorn bfd.app:app	
+	cd bfd && python manage.py runserver 
 endif
 
 flake8:

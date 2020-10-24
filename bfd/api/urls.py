@@ -34,14 +34,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from django.urls import path
+from django.urls import path, include
 from rest_framework.urlpatterns import format_suffix_patterns
 from api import views
 
-urlpatterns = [
-    path("u/<slug:username>", views.user_detail),
-    path("n/new", views.new_namespace),
-    path("n/<slug:namespace>", views.namespace_detail),
-]
-
-urlpatterns = format_suffix_patterns(urlpatterns)
+urlpatterns = format_suffix_patterns(
+    [
+        path("auth/", include("rest_framework.urls", namespace="auth")),
+        path(
+            "u/<slug:username>/",
+            views.UserDetail.as_view(),
+            name="user-detail",
+        ),
+    ]
+)

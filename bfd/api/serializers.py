@@ -222,6 +222,26 @@ class DeleteQuery(serializers.Serializer):
     )
 
 
+class UserSerializer(serializers.ModelSerializer):
+    """
+    Manages how users are serialized to the outside world.
+    """
+
+    username = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    is_admin = serializers.BooleanField(source="is_superuser", read_only=True)
+    last_login = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = models.User
+        fields = [
+            "username",
+            "email",
+            "is_admin",
+            "last_login",
+        ]
+
+
 class UserRoleSerializer(serializers.ModelSerializer):
     """
     Manages how users are serialized when being specified for roles.
