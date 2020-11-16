@@ -115,7 +115,8 @@ information). However they do automatically store the value's
 
 * Type of: `library/audiobook is mime:audio/mpeg` will return all objects with
   the `library/audiobook` tag whose mime type is listed as `audio/mpeg` (i.e.
-  MP3). MIME type information is always treated as case insensitive.
+  MP3). MIME type information is always treated as case insensitive and must
+  start with `mime:` (to differentiate MIME values from tag paths).
 
 The current list of valid MIME types (and what file types they represent) can
 be found [on the IANA's website](https://www.iana.org/assignments/media-types/media-types.xhtml).
