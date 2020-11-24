@@ -1,7 +1,7 @@
 """
 Tests for the datastore logic used to define the behaviour of the API.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 
@@ -53,13 +53,19 @@ class NamespaceTestCase(TestCase):
             is_superuser=True,
         )
         self.admin_user = models.User.objects.create_user(
-            username="admin_user", email="test2@user.com", password="password",
+            username="admin_user",
+            email="test2@user.com",
+            password="password",
         )
         self.tag_user = models.User.objects.create_user(
-            username="tag_user", email="test3@user.com", password="password",
+            username="tag_user",
+            email="test3@user.com",
+            password="password",
         )
         self.tag_reader = models.User.objects.create_user(
-            username="tag_reader", email="test4@user.com", password="password",
+            username="tag_reader",
+            email="test4@user.com",
+            password="password",
         )
         self.normal_user = models.User.objects.create_user(
             username="normal_user",
@@ -72,7 +78,9 @@ class NamespaceTestCase(TestCase):
             self.site_admin_user,
             self.namespace_name,
             self.namespace_description,
-            admins=[self.admin_user,],
+            admins=[
+                self.admin_user,
+            ],
         )
         self.public_tag_name = "public_tag"
         self.public_tag_description = "This is a public tag."
@@ -95,7 +103,9 @@ class NamespaceTestCase(TestCase):
             type_of=self.user_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            users=[self.tag_user,],
+            users=[
+                self.tag_user,
+            ],
         )
         self.reader_tag_name = "reader_tag"
         self.reader_tag_description = "This is a reader tag."
@@ -107,7 +117,9 @@ class NamespaceTestCase(TestCase):
             type_of=self.reader_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            readers=[self.tag_reader,],
+            readers=[
+                self.tag_reader,
+            ],
         )
 
     def test_create_namespace_as_site_admin(self):
@@ -130,7 +142,9 @@ class NamespaceTestCase(TestCase):
                 user=self.site_admin_user.username,
                 namespace=name,
                 description=description,
-                admins=[self.site_admin_user.username,],
+                admins=[
+                    self.site_admin_user.username,
+                ],
             )
 
     def test_create_namespace_as_site_admin_with_admin_list(self):
@@ -183,7 +197,9 @@ class NamespaceTestCase(TestCase):
                 user=self.admin_user.username,
                 namespace=name,
                 description=description,
-                admins=[self.admin_user.username,],
+                admins=[
+                    self.admin_user.username,
+                ],
             )
 
     def test_create_namespace_fails_with_non_site_admin_user(self):
@@ -286,7 +302,12 @@ class NamespaceTestCase(TestCase):
         self.assertFalse(tag1["private"])
         self.assertEqual(tag1["updated_by"], self.site_admin_user.username)
         self.assertEqual(tag1["updated_on"], str(self.public_tag.updated_on))
-        self.assertEqual(tag1["users"], [self.site_admin_user.username,])
+        self.assertEqual(
+            tag1["users"],
+            [
+                self.site_admin_user.username,
+            ],
+        )
         self.assertEqual(tag1["readers"], [])
         # Tag 2
         self.assertEqual(tag2["name"], self.reader_tag_name)
@@ -297,8 +318,18 @@ class NamespaceTestCase(TestCase):
         self.assertTrue(tag2["private"])
         self.assertEqual(tag2["updated_by"], self.site_admin_user.username)
         self.assertEqual(tag2["updated_on"], str(self.reader_tag.updated_on))
-        self.assertEqual(tag2["users"], [self.site_admin_user.username,])
-        self.assertEqual(tag2["readers"], [self.tag_reader.username,])
+        self.assertEqual(
+            tag2["users"],
+            [
+                self.site_admin_user.username,
+            ],
+        )
+        self.assertEqual(
+            tag2["readers"],
+            [
+                self.tag_reader.username,
+            ],
+        )
         # Tag 3
         self.assertEqual(tag3["name"], self.user_tag_name)
         self.assertEqual(tag3["description"], self.user_tag_description)
@@ -310,7 +341,10 @@ class NamespaceTestCase(TestCase):
         self.assertEqual(tag3["updated_on"], str(self.user_tag.updated_on))
         self.assertEqual(
             tag3["users"],
-            [self.site_admin_user.username, self.tag_user.username,],
+            [
+                self.site_admin_user.username,
+                self.tag_user.username,
+            ],
         )
         self.assertEqual(tag3["readers"], [])
 
@@ -343,7 +377,12 @@ class NamespaceTestCase(TestCase):
         self.assertFalse(tag1["private"])
         self.assertEqual(tag1["updated_by"], self.site_admin_user.username)
         self.assertEqual(tag1["updated_on"], str(self.public_tag.updated_on))
-        self.assertEqual(tag1["users"], [self.site_admin_user.username,])
+        self.assertEqual(
+            tag1["users"],
+            [
+                self.site_admin_user.username,
+            ],
+        )
         self.assertEqual(tag1["readers"], [])
         # Tag 2
         self.assertEqual(tag2["name"], self.reader_tag_name)
@@ -354,8 +393,18 @@ class NamespaceTestCase(TestCase):
         self.assertTrue(tag2["private"])
         self.assertEqual(tag2["updated_by"], self.site_admin_user.username)
         self.assertEqual(tag2["updated_on"], str(self.reader_tag.updated_on))
-        self.assertEqual(tag2["users"], [self.site_admin_user.username,])
-        self.assertEqual(tag2["readers"], [self.tag_reader.username,])
+        self.assertEqual(
+            tag2["users"],
+            [
+                self.site_admin_user.username,
+            ],
+        )
+        self.assertEqual(
+            tag2["readers"],
+            [
+                self.tag_reader.username,
+            ],
+        )
         # Tag 3
         self.assertEqual(tag3["name"], self.user_tag_name)
         self.assertEqual(tag3["description"], self.user_tag_description)
@@ -367,7 +416,10 @@ class NamespaceTestCase(TestCase):
         self.assertEqual(tag3["updated_on"], str(self.user_tag.updated_on))
         self.assertEqual(
             tag3["users"],
-            [self.site_admin_user.username, self.tag_user.username,],
+            [
+                self.site_admin_user.username,
+                self.tag_user.username,
+            ],
         )
         self.assertEqual(tag3["readers"], [])
 
@@ -539,13 +591,19 @@ class TagTestCase(TestCase):
             is_superuser=True,
         )
         self.admin_user = models.User.objects.create_user(
-            username="admin_user", email="test2@user.com", password="password",
+            username="admin_user",
+            email="test2@user.com",
+            password="password",
         )
         self.tag_user = models.User.objects.create_user(
-            username="tag_user", email="test3@user.com", password="password",
+            username="tag_user",
+            email="test3@user.com",
+            password="password",
         )
         self.tag_reader = models.User.objects.create_user(
-            username="tag_reader", email="test4@user.com", password="password",
+            username="tag_reader",
+            email="test4@user.com",
+            password="password",
         )
         self.normal_user = models.User.objects.create_user(
             username="normal_user",
@@ -558,7 +616,9 @@ class TagTestCase(TestCase):
             self.site_admin_user,
             self.namespace_name,
             self.namespace_description,
-            admins=[self.admin_user,],
+            admins=[
+                self.admin_user,
+            ],
         )
         self.public_tag_name = "public_tag"
         self.public_tag_description = "This is a public tag."
@@ -581,7 +641,9 @@ class TagTestCase(TestCase):
             type_of=self.user_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            users=[self.tag_user,],
+            users=[
+                self.tag_user,
+            ],
         )
         self.reader_tag_name = "reader_tag"
         self.reader_tag_description = "This is a reader tag."
@@ -593,7 +655,9 @@ class TagTestCase(TestCase):
             type_of=self.reader_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            readers=[self.tag_reader,],
+            readers=[
+                self.tag_reader,
+            ],
         )
 
     def test_create_tag_as_site_admin(self):
@@ -630,7 +694,9 @@ class TagTestCase(TestCase):
                 type_of=tag.get_type_of_display(),
                 namespace=self.test_namespace.name,
                 private=is_private,
-                users=[self.site_admin_user.username,],
+                users=[
+                    self.site_admin_user.username,
+                ],
                 readers=[],
             )
 
@@ -668,7 +734,9 @@ class TagTestCase(TestCase):
                 type_of=tag.get_type_of_display(),
                 namespace=self.test_namespace.name,
                 private=is_private,
-                users=[self.admin_user.username,],
+                users=[
+                    self.admin_user.username,
+                ],
                 readers=[],
             )
 
@@ -718,8 +786,13 @@ class TagTestCase(TestCase):
                 type_of=tag.get_type_of_display(),
                 namespace=self.test_namespace.name,
                 private=is_private,
-                users=[self.site_admin_user.username, self.tag_user.username,],
-                readers=[self.tag_reader.username,],
+                users=[
+                    self.site_admin_user.username,
+                    self.tag_user.username,
+                ],
+                readers=[
+                    self.tag_reader.username,
+                ],
             )
 
     def test_create_tag_with_normal_user(self):
@@ -1324,7 +1397,11 @@ class TagTestCase(TestCase):
         collection contains a tag for which the user doesn't have the "user"
         role, then the response if False.
         """
-        tag_set = set([f"{self.namespace_name}/{self.user_tag_name}",])
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.user_tag_name}",
+            ]
+        )
         self.assertTrue(logic.check_users_tags(self.tag_user, tag_set))
         tag_set = set(
             [
@@ -1365,7 +1442,11 @@ class TagTestCase(TestCase):
         associated with it), unless, of course, they are also have the "users"
         role.
         """
-        tag_set = set([f"{self.namespace_name}/{self.reader_tag_name}",])
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
         self.assertFalse(logic.check_users_tags(self.tag_reader, tag_set))
 
     def test_check_readers_tags_as_admin_user(self):
@@ -1432,7 +1513,11 @@ class TagTestCase(TestCase):
         In this case, if a user is a normal user and the tags are all public
         the result will be True.
         """
-        tag_set = set([f"{self.namespace_name}/{self.public_tag_name}",])
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.public_tag_name}",
+            ]
+        )
         self.assertTrue(logic.check_readers_tags(self.normal_user, tag_set))
 
     def test_check_readers_tags_as_tag_reader(self):
@@ -1445,7 +1530,11 @@ class TagTestCase(TestCase):
         tag collection contains a tag for which the user doesn't have the
         "reader" role, then the response if False.
         """
-        tag_set = set([f"{self.namespace_name}/{self.reader_tag_name}",])
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
         self.assertTrue(logic.check_readers_tags(self.tag_reader, tag_set))
         tag_set = set(
             [
@@ -1486,5 +1575,9 @@ class TagTestCase(TestCase):
         users can always read tags for which they have permission to annotate
         data.
         """
-        tag_set = set([f"{self.namespace_name}/{self.reader_tag_name}",])
+        tag_set = set(
+            [
+                f"{self.namespace_name}/{self.reader_tag_name}",
+            ]
+        )
         self.assertFalse(logic.check_readers_tags(self.tag_user, tag_set))

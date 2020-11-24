@@ -5,7 +5,7 @@ The User model is exactly like the regular django.contrib.auth.models.User
 model except that the "username" field *MUST* be a SLUG. This is to ensure the
 user gets a validly named unique namespace for their personal use.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 

@@ -79,6 +79,7 @@ need to reheat the ocean with my own plastic kettle. 🤨
    api.md
    query.md
    architecture.md
+   adr.md
    license.md
    authors.md
 ```

@@ -1,7 +1,7 @@
 """
 Tests exercising the lexer and parser that deal with queries.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 
@@ -372,13 +372,19 @@ class QueryParserTestCase(TestCase):
             is_superuser=True,
         )
         self.admin_user = models.User.objects.create_user(
-            username="admin_user", email="test2@user.com", password="password",
+            username="admin_user",
+            email="test2@user.com",
+            password="password",
         )
         self.tag_user = models.User.objects.create_user(
-            username="tag_user", email="test3@user.com", password="password",
+            username="tag_user",
+            email="test3@user.com",
+            password="password",
         )
         self.tag_reader = models.User.objects.create_user(
-            username="tag_reader", email="test4@user.com", password="password",
+            username="tag_reader",
+            email="test4@user.com",
+            password="password",
         )
         self.normal_user = models.User.objects.create_user(
             username="normal_user",
@@ -391,7 +397,9 @@ class QueryParserTestCase(TestCase):
             self.site_admin_user,
             self.namespace_name,
             self.namespace_description,
-            admins=[self.admin_user,],
+            admins=[
+                self.admin_user,
+            ],
         )
         self.public_tag_name = "public_tag"
         self.public_tag_description = "This is a public tag."
@@ -414,7 +422,9 @@ class QueryParserTestCase(TestCase):
             type_of=self.user_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            users=[self.tag_user,],
+            users=[
+                self.tag_user,
+            ],
         )
         self.reader_tag_name = "reader_tag"
         self.reader_tag_description = "This is a reader tag."
@@ -426,7 +436,9 @@ class QueryParserTestCase(TestCase):
             type_of=self.reader_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            readers=[self.tag_reader,],
+            readers=[
+                self.tag_reader,
+            ],
         )
 
     def test_init_readable_tag(self):
@@ -488,7 +500,10 @@ class QueryParserTestCase(TestCase):
         parser = query.QueryParser(self.admin_user, self.lexer.tag_paths)
         result = parser._evaluate_query(
             "test_namespace/public_tag",
-            {"string", "url",},
+            {
+                "string",
+                "url",
+            },
             "MATCHES",
             Q(value__contains="test"),
         )
@@ -509,7 +524,10 @@ class QueryParserTestCase(TestCase):
         with self.assertRaises(ValueError) as ex:
             parser._evaluate_query(
                 "test_namespace/unknown_tag",
-                {"string", "url",},
+                {
+                    "string",
+                    "url",
+                },
                 "MATCHES",
                 Q(value__contains="test"),
             )
@@ -1090,13 +1108,19 @@ class EvaluateTestCase(TestCase):
             is_superuser=True,
         )
         self.admin_user = models.User.objects.create_user(
-            username="admin_user", email="test2@user.com", password="password",
+            username="admin_user",
+            email="test2@user.com",
+            password="password",
         )
         self.tag_user = models.User.objects.create_user(
-            username="tag_user", email="test3@user.com", password="password",
+            username="tag_user",
+            email="test3@user.com",
+            password="password",
         )
         self.tag_reader = models.User.objects.create_user(
-            username="tag_reader", email="test4@user.com", password="password",
+            username="tag_reader",
+            email="test4@user.com",
+            password="password",
         )
         self.normal_user = models.User.objects.create_user(
             username="normal_user",
@@ -1109,7 +1133,9 @@ class EvaluateTestCase(TestCase):
             self.site_admin_user,
             self.namespace_name,
             self.namespace_description,
-            admins=[self.admin_user,],
+            admins=[
+                self.admin_user,
+            ],
         )
         self.public_tag_name = "public_tag"
         self.public_tag_description = "This is a public tag."
@@ -1132,7 +1158,9 @@ class EvaluateTestCase(TestCase):
             type_of=self.user_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            users=[self.tag_user,],
+            users=[
+                self.tag_user,
+            ],
         )
         self.reader_tag_name = "reader_tag"
         self.reader_tag_description = "This is a reader tag."
@@ -1144,7 +1172,9 @@ class EvaluateTestCase(TestCase):
             type_of=self.reader_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            readers=[self.tag_reader,],
+            readers=[
+                self.tag_reader,
+            ],
         )
 
     def test_evaluate_good_case(self):

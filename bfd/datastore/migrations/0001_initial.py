@@ -130,7 +130,9 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "users",
                 "abstract": False,
             },
-            managers=[("objects", datastore.models.BFDUserManager()),],
+            managers=[
+                ("objects", datastore.models.BFDUserManager()),
+            ],
         ),
         migrations.CreateModel(
             name="Namespace",
@@ -201,7 +203,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={"ordering": ["name"],},
+            options={
+                "ordering": ["name"],
+            },
         ),
         migrations.CreateModel(
             name="Tag",
@@ -323,7 +327,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={"ordering": ["name"],},
+            options={
+                "ordering": ["name"],
+            },
         ),
         migrations.CreateModel(
             name="StringValue",

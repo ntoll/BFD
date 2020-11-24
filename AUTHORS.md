@@ -1,3 +1,3 @@
 # BFD Authors
 
-Nicholas H.Tollervey (ntoll@ntoll.org) - CamerataIO Limited.
+Nicholas H.Tollervey (ntoll@ntoll.org).

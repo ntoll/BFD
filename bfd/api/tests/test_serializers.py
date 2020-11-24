@@ -1,7 +1,7 @@
 """
 Tests for the  custom serialization code used by the API application.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 

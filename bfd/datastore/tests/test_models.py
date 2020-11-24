@@ -1,7 +1,7 @@
 """
 Tests for the datastore models.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 
@@ -619,19 +619,51 @@ class TagTestCase(TestCase):
         annotation2.save()
         annotation3.save()
         result1 = tag.filter(Q(value__contains="world"))
-        self.assertEqual(result1, {"test-object-1",})
+        self.assertEqual(
+            result1,
+            {
+                "test-object-1",
+            },
+        )
         result2 = tag.filter(Q(value__icontains="hello"))
-        self.assertEqual(result2, {"test-object-1", "test-object-2",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-1",
+                "test-object-2",
+            },
+        )
         result3 = tag.filter(Q(value__exact="hello"))
-        self.assertEqual(result3, {"test-object-2",})
+        self.assertEqual(
+            result3,
+            {
+                "test-object-2",
+            },
+        )
         result4 = tag.filter(Q(value__iexact="HELLO"))
-        self.assertEqual(result4, {"test-object-2",})
+        self.assertEqual(
+            result4,
+            {
+                "test-object-2",
+            },
+        )
         result5 = tag.filter(
             Q(value__icontains="hello"), exclude=Q(value__contains="world")
         )
-        self.assertEqual(result5, {"test-object-2",})
+        self.assertEqual(
+            result5,
+            {
+                "test-object-2",
+            },
+        )
         result6 = tag.filter(None, Q(value__contains="world"))
-        self.assertEqual(result6, {"test-object-2", "test-object-3",})
+        self.assertEqual(
+            result6,
+            {
+                "test-object-2",
+                "test-object-3",
+            },
+        )
 
     def test_filter_boolean_values(self):
         """
@@ -651,9 +683,19 @@ class TagTestCase(TestCase):
         annotation1.save()
         annotation2.save()
         result1 = tag.filter(Q(value=True))
-        self.assertEqual(result1, {"test-object-1",})
+        self.assertEqual(
+            result1,
+            {
+                "test-object-1",
+            },
+        )
         result2 = tag.filter(Q(value=False))
-        self.assertEqual(result2, {"test-object-2",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-2",
+            },
+        )
 
     def test_filter_integer_values(self):
         """
@@ -676,20 +718,57 @@ class TagTestCase(TestCase):
         annotation3.save()
         # Compares integers.
         result0 = tag.filter(Q(value__lt=0))
-        self.assertEqual(result0, {"test-object-1",})
+        self.assertEqual(
+            result0,
+            {
+                "test-object-1",
+            },
+        )
         result1 = tag.filter(Q(value__lte=0))
-        self.assertEqual(result1, {"test-object-1", "test-object-2",})
+        self.assertEqual(
+            result1,
+            {
+                "test-object-1",
+                "test-object-2",
+            },
+        )
         result2 = tag.filter(Q(value__exact=0))
-        self.assertEqual(result2, {"test-object-2",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-2",
+            },
+        )
         result3 = tag.filter(Q(value__gt=0))
-        self.assertEqual(result3, {"test-object-3",})
+        self.assertEqual(
+            result3,
+            {
+                "test-object-3",
+            },
+        )
         result4 = tag.filter(Q(value__gte=0))
-        self.assertEqual(result4, {"test-object-2", "test-object-3",})
+        self.assertEqual(
+            result4,
+            {
+                "test-object-2",
+                "test-object-3",
+            },
+        )
         # Should work with floats too.
         result5 = tag.filter(Q(value__gt=1.0))
-        self.assertEqual(result5, {"test-object-3",})
+        self.assertEqual(
+            result5,
+            {
+                "test-object-3",
+            },
+        )
         result6 = tag.filter(Q(value__exact=0.0))
-        self.assertEqual(result6, {"test-object-2",})
+        self.assertEqual(
+            result6,
+            {
+                "test-object-2",
+            },
+        )
 
     def test_filter_float_values(self):
         """
@@ -712,20 +791,57 @@ class TagTestCase(TestCase):
         annotation3.save()
         # Compares floats.
         result0 = tag.filter(Q(value__lt=0.0))
-        self.assertEqual(result0, {"test-object-1",})
+        self.assertEqual(
+            result0,
+            {
+                "test-object-1",
+            },
+        )
         result1 = tag.filter(Q(value__lte=0.0))
-        self.assertEqual(result1, {"test-object-1", "test-object-2",})
+        self.assertEqual(
+            result1,
+            {
+                "test-object-1",
+                "test-object-2",
+            },
+        )
         result2 = tag.filter(Q(value__exact=0.0))
-        self.assertEqual(result2, {"test-object-2",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-2",
+            },
+        )
         result3 = tag.filter(Q(value__gt=0.0))
-        self.assertEqual(result3, {"test-object-3",})
+        self.assertEqual(
+            result3,
+            {
+                "test-object-3",
+            },
+        )
         result4 = tag.filter(Q(value__gte=0.0))
-        self.assertEqual(result4, {"test-object-2", "test-object-3",})
+        self.assertEqual(
+            result4,
+            {
+                "test-object-2",
+                "test-object-3",
+            },
+        )
         # Should work with integers too.
         result5 = tag.filter(Q(value__gt=1))
-        self.assertEqual(result5, {"test-object-3",})
+        self.assertEqual(
+            result5,
+            {
+                "test-object-3",
+            },
+        )
         result6 = tag.filter(Q(value__exact=0))
-        self.assertEqual(result6, {"test-object-2",})
+        self.assertEqual(
+            result6,
+            {
+                "test-object-2",
+            },
+        )
 
     def test_filter_datetime_values(self):
         """
@@ -756,13 +872,29 @@ class TagTestCase(TestCase):
         result1 = tag.filter(Q(value__lte=date2))
         self.assertEqual(result1, {"test-object-1", "test-object-2"})
         result2 = tag.filter(Q(value__exact=date1))
-        self.assertEqual(result2, {"test-object-1",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-1",
+            },
+        )
         result3 = tag.filter(Q(value__gt=test_date))
-        self.assertEqual(result3, {"test-object-3",})
+        self.assertEqual(
+            result3,
+            {
+                "test-object-3",
+            },
+        )
         result4 = tag.filter(Q(value__exact=test_date))
         self.assertEqual(result4, set())
         result5 = tag.filter(Q(value__gte=date2))
-        self.assertEqual(result5, {"test-object-2", "test-object-3",})
+        self.assertEqual(
+            result5,
+            {
+                "test-object-2",
+                "test-object-3",
+            },
+        )
 
     def test_filter_duration_values(self):
         """
@@ -790,17 +922,38 @@ class TagTestCase(TestCase):
         annotation2.save()
         annotation3.save()
         result0 = tag.filter(Q(value__lt=timedelta(days=2)))
-        self.assertEqual(result0, {"test-object-1",})
+        self.assertEqual(
+            result0,
+            {
+                "test-object-1",
+            },
+        )
         result1 = tag.filter(Q(value__lte=timedelta(days=2)))
         self.assertEqual(result1, {"test-object-1", "test-object-2"})
         result2 = tag.filter(Q(value__exact=timedelta(days=1)))
-        self.assertEqual(result2, {"test-object-1",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-1",
+            },
+        )
         result3 = tag.filter(Q(value__gt=timedelta(days=2)))
-        self.assertEqual(result3, {"test-object-3",})
+        self.assertEqual(
+            result3,
+            {
+                "test-object-3",
+            },
+        )
         result4 = tag.filter(Q(value__exact=timedelta(days=4)))
         self.assertEqual(result4, set())
         result5 = tag.filter(Q(value__gte=timedelta(days=2)))
-        self.assertEqual(result5, {"test-object-2", "test-object-3",})
+        self.assertEqual(
+            result5,
+            {
+                "test-object-2",
+                "test-object-3",
+            },
+        )
 
     def test_filter_binary_values(self):
         """
@@ -836,7 +989,12 @@ class TagTestCase(TestCase):
         annotation1.save()
         annotation2.save()
         result0 = tag.filter(Q(mime__exact="txt/txt"))
-        self.assertEquals(result0, {"test-object-1",})
+        self.assertEquals(
+            result0,
+            {
+                "test-object-1",
+            },
+        )
         result1 = tag.filter(Q(mime__exact="txt/json"))
         self.assertEquals(result1, set())
 
@@ -862,17 +1020,42 @@ class TagTestCase(TestCase):
         annotation1.save()
         annotation2.save()
         result1 = tag.filter(Q(value__contains="camerata"))
-        self.assertEqual(result1, {"test-object-1",})
+        self.assertEqual(
+            result1,
+            {
+                "test-object-1",
+            },
+        )
         result2 = tag.filter(Q(value__icontains="Camerata"))
-        self.assertEqual(result2, {"test-object-1",})
+        self.assertEqual(
+            result2,
+            {
+                "test-object-1",
+            },
+        )
         result3 = tag.filter(Q(value__exact="https://ntoll.org/cv"))
-        self.assertEqual(result3, {"test-object-2",})
+        self.assertEqual(
+            result3,
+            {
+                "test-object-2",
+            },
+        )
         result4 = tag.filter(Q(value__iexact="https://ntoll.org/CV"))
-        self.assertEqual(result4, {"test-object-2",})
+        self.assertEqual(
+            result4,
+            {
+                "test-object-2",
+            },
+        )
         result5 = tag.filter(
             Q(value__icontains="https://"), exclude=Q(value__contains=".io")
         )
-        self.assertEqual(result5, {"test-object-2",})
+        self.assertEqual(
+            result5,
+            {
+                "test-object-2",
+            },
+        )
 
 
 class AbstractBaseValueTestCase(TestCase):
@@ -1007,13 +1190,19 @@ class TagQueryTestCase(TestCase):
             is_superuser=True,
         )
         self.admin_user = models.User.objects.create_user(
-            username="admin_user", email="test2@user.com", password="password",
+            username="admin_user",
+            email="test2@user.com",
+            password="password",
         )
         self.tag_user = models.User.objects.create_user(
-            username="tag_user", email="test3@user.com", password="password",
+            username="tag_user",
+            email="test3@user.com",
+            password="password",
         )
         self.tag_reader = models.User.objects.create_user(
-            username="tag_reader", email="test4@user.com", password="password",
+            username="tag_reader",
+            email="test4@user.com",
+            password="password",
         )
         self.normal_user = models.User.objects.create_user(
             username="normal_user",
@@ -1026,7 +1215,9 @@ class TagQueryTestCase(TestCase):
             self.site_admin_user,
             self.namespace_name,
             self.namespace_description,
-            admins=[self.admin_user,],
+            admins=[
+                self.admin_user,
+            ],
         )
         self.public_tag_name = "public_tag"
         self.public_tag_description = "This is a public tag."
@@ -1049,7 +1240,9 @@ class TagQueryTestCase(TestCase):
             type_of=self.user_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            users=[self.tag_user,],
+            users=[
+                self.tag_user,
+            ],
         )
         self.reader_tag_name = "reader_tag"
         self.reader_tag_description = "This is a reader tag."
@@ -1061,7 +1254,9 @@ class TagQueryTestCase(TestCase):
             type_of=self.reader_tag_type_of,
             namespace=self.test_namespace,
             private=True,
-            readers=[self.tag_reader,],
+            readers=[
+                self.tag_reader,
+            ],
         )
 
     def test_get_users_query_as_site_admin_user(self):

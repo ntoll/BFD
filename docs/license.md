@@ -26,7 +26,7 @@ Software: Big Friendly Datastore (BFD)
 
 License: Apache 2.0 (Copied Below)
 
-Licensor: CamerataIO Limited (12373249)
+Licensor: Nicholas H.Tollervey 
 
 ## Apache License
 

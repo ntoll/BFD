@@ -4,7 +4,7 @@ Uses the Sly (https://sly.readthedocs.io/en/latest/) lexer/parser library by
 Dave Beazley. Thanks to the "dynamic" nature of SLY, mypy and flake8 complain,
 hence all the "type: ignore" and "noqa" comment-flags to silence them.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 
@@ -407,7 +407,12 @@ class QueryParser(Parser):
         Query for a boolean value.
         """
         return self._evaluate_query(
-            p.PATH, {"boolean",}, p.IS, Q(value__exact=p.boolean)
+            p.PATH,
+            {
+                "boolean",
+            },
+            p.IS,
+            Q(value__exact=p.boolean),
         )
 
     @_("PATH operator scalar")  # type: ignore
@@ -431,7 +436,12 @@ class QueryParser(Parser):
             query = Q(value__exact=p.scalar)
         return self._evaluate_query(
             p.PATH,
-            {"integer", "float", "datetime", "duration",},
+            {
+                "integer",
+                "float",
+                "datetime",
+                "duration",
+            },
             p.operator,
             query,
             exclude,
@@ -527,6 +537,9 @@ def evaluate(user: models.User, query: str) -> Set[str]:
     except Exception as ex:
         # Log the exception and re-raise.
         logger.msg(
-            "Query exception.", user=user.username, query=query, exc_info=ex,
+            "Query exception.",
+            user=user.username,
+            query=query,
+            exc_info=ex,
         )
         raise ex

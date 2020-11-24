@@ -1,7 +1,7 @@
 """
 Serializers convert data types to serialized data (e.g. JSON) and back again.
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 
@@ -261,7 +261,7 @@ class NamespaceSerializer(serializers.ModelSerializer):
     Manages how Namespace data comes in/out of the API.
     """
 
-    name = serializers.CharField(read_only=True)
+    name = serializers.CharField(required=True)
     description = serializers.CharField(
         required=True, style={"base_template": "textarea.html"}
     )

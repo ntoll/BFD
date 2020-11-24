@@ -1,7 +1,7 @@
 """
 Tests exercising the API views
 
-Copyright (C) 2020 CamerataIO Limited.
+Copyright (C) 2020 Nicholas H.Tollervey.
 
 "Commons Clause" License Condition v1.0:
 
@@ -73,7 +73,12 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
         """
         An HTTP get to the endpoint results in an HTTP 403 Forbidden response.
         """
-        url = reverse("user-detail", kwargs={"username": "test_user",})
+        url = reverse(
+            "user-detail",
+            kwargs={
+                "username": "test_user",
+            },
+        )
         response = self.client.get(url, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -82,7 +87,12 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
         If the caller is logged in but the referenced user does not exist, the
         API returns a 404 Not Found response.
         """
-        url = reverse("user-detail", kwargs={"username": "missing_user",})
+        url = reverse(
+            "user-detail",
+            kwargs={
+                "username": "missing_user",
+            },
+        )
         self.client.login(username="test_user", password="password")
         response = self.client.get(url, format="json")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -92,7 +102,12 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
         An HTTP get as a logged in user to the endpoint, returns the expected
         information about the referenced user.
         """
-        url = reverse("user-detail", kwargs={"username": "target_user",})
+        url = reverse(
+            "user-detail",
+            kwargs={
+                "username": "target_user",
+            },
+        )
         self.client.login(username="test_user", password="password")
         response = self.client.get(url, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -108,7 +123,12 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
         information about the referenced user. In this case, since the target
         user is a superuser, the is_admin flag is set.
         """
-        url = reverse("user-detail", kwargs={"username": "super_user",})
+        url = reverse(
+            "user-detail",
+            kwargs={
+                "username": "super_user",
+            },
+        )
         self.client.login(username="test_user", password="password")
         response = self.client.get(url, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
