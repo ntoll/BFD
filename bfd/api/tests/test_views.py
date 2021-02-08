@@ -37,12 +37,13 @@ limitations under the License.
 from django.urls import path, include, reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, URLPatternsTestCase
+from rest_framework.authtoken.models import Token
 from datastore import models
 
 
 class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
     """
-    Exercises the UserDetailView.
+    Exercises the UserDetail view.
     """
 
     urlpatterns = [
@@ -56,18 +57,21 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
             password="password",
             is_superuser=False,
         )
+        Token.objects.create(user=self.target_user)
         self.super_user = models.User.objects.create_user(
             username="super_user",
             email="super@user.com",
             password="password",
             is_superuser=True,
         )
+        Token.objects.create(user=self.super_user)
         self.test_user = models.User.objects.create_user(
             username="test_user",
             email="test@user.com",
             password="password",
             is_superuser=False,
         )
+        Token.objects.create(user=self.test_user)
 
     def test_get_cannot_be_anonymous(self):
         """
@@ -80,7 +84,7 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
             },
         )
         response = self.client.get(url, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_not_found(self):
         """
@@ -108,7 +112,8 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
                 "username": "target_user",
             },
         )
-        self.client.login(username="test_user", password="password")
+        token = Token.objects.get(user__username="test_user")
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
         response = self.client.get(url, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
@@ -121,7 +126,7 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
         """
         An HTTP get as a logged in user to the endpoint, returns the expected
         information about the referenced user. In this case, since the target
-        user is a superuser, the is_admin flag is set.
+        user is a superuser, the is_admin flag is set in the response.
         """
         url = reverse(
             "user-detail",
@@ -129,7 +134,8 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
                 "username": "super_user",
             },
         )
-        self.client.login(username="test_user", password="password")
+        token = Token.objects.get(user__username="test_user")
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
         response = self.client.get(url, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
@@ -137,3 +143,104 @@ class UserDetailViewTestCase(APITestCase, URLPatternsTestCase):
         self.assertEqual("super@user.com", data["email"])
         self.assertTrue(data["is_admin"])
         self.assertIsNone(data["last_login"])
+
+
+class NamespaceCreateViewTestCase(APITestCase, URLPatternsTestCase):
+    """
+    Exercises the NamespaceCreate view.
+    """
+
+    urlpatterns = [
+        path("api/", include("api.urls")),
+    ]
+
+    def setUp(self):
+        self.admin_user = models.User.objects.create_user(
+            username="super_user",
+            email="admin@user.com",
+            password="password",
+            is_staff=True,
+        )
+        Token.objects.create(user=self.admin_user)
+        self.test_user = models.User.objects.create_user(
+            username="test_user",
+            email="test@user.com",
+            password="password",
+            is_superuser=False,
+        )
+        Token.objects.create(user=self.test_user)
+
+    def test_post_cannot_be_anonymous(self):
+        """
+        An HTTP get to the endpoint results in an HTTP 403 Forbidden response.
+        """
+        url = reverse("namespace-create")
+        data = {
+            "name": "test_namespace",
+            "description": "A test namespace's description.",
+            "admins": [],
+        }
+        response = self.client.post(url, data=data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_post_not_admin(self):
+        """
+        If the caller is logged in but not an admin user, then the API returns
+        a 403 Forbidden response.
+        """
+        url = reverse("namespace-create")
+        data = {
+            "name": "test_namespace",
+            "description": "A test namespace's description.",
+            "admins": [],
+        }
+        token = Token.objects.get(user__username="test_user")
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+        response = self.client.post(url, data=data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_post_ok(self):
+        """
+        If the caller is logged in and an admin user, then the API returns
+        a 201 Created response. The namespace has been added to the database.
+        """
+        url = reverse("namespace-create")
+        data = {
+            "name": "test_namespace",
+            "description": "A test namespace's description.",
+            "admins": [],
+        }
+        token = Token.objects.get(user__username="super_user")
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+        response = self.client.post(url, data=data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        new_data = response.json()
+        self.assertEqual(data["name"], new_data["name"])
+        self.assertEqual(data["description"], new_data["description"])
+        self.assertEqual(
+            [
+                {
+                    "username": "super_user",
+                    "avatar": self.admin_user.avatar,
+                },
+            ],
+            new_data["admins"],
+        )
+
+    def test_post_bad_data(self):
+        """
+        Assuming the caller is an admin, if there's something wrong with the
+        passed in data, then they get a 400 BAD REQUEST response with error
+        information about the problem field.
+        """
+        url = reverse("namespace-create")
+        data = {
+            "name": "test namespace",  # Namespace name must be a SLUG!
+            "description": "A test namespace's description.",
+            "admins": [],
+        }
+        token = Token.objects.get(user__username="super_user")
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+        response = self.client.post(url, data=data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("name", response.json())

@@ -34,6 +34,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import hashlib
 from io import BytesIO
 from unittest import mock
 from datetime import datetime, timedelta, timezone
@@ -119,6 +120,42 @@ class UserTestCase(TestCase):
                 email="test@user.com",
                 password="password",
             )
+
+    def test_avatar(self):
+        """
+        Ensure the expected Gravatar URL is generated.
+        """
+        email = "test@user.com"
+        test_user = models.User.objects.create_user(
+            username="test_user", email=email, password="password"
+        )
+        email_hash = hashlib.md5(email.lower().encode("utf-8")).hexdigest()
+        expected = "https://www.gravatar.com/avatar/" + email_hash
+        self.assertEqual(expected, test_user.avatar)
+
+    def test_is_admin(self):
+        """
+        The is_admin method returns True if the user is either a superuser or
+        staff account. Otherwise it returns False.
+        """
+        superuser = models.User.objects.create_user(
+            username="super_user",
+            email="super@user.com",
+            password="password",
+            is_superuser=True,
+        )
+        staff = models.User.objects.create_user(
+            username="staff_user",
+            email="staff@user.com",
+            password="password",
+            is_staff=True,
+        )
+        normal = models.User.objects.create_user(
+            username="test_user", email="test@user.com", password="password"
+        )
+        self.assertTrue(superuser.is_admin)
+        self.assertTrue(staff.is_admin)
+        self.assertFalse(normal.is_admin)
 
 
 class NamespaceTestCase(TestCase):

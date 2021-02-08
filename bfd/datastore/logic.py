@@ -67,7 +67,7 @@ def create_namespace(
     Any other user making such a request will result in a PermissionError
     being thrown.
     """
-    if user.is_superuser or user.username == name:
+    if user.is_admin or user.username == name:
         n = models.Namespace.objects.create_namespace(
             name=name, description=description, user=user
         )
@@ -106,7 +106,7 @@ def get_namespace(user: User, name: str) -> Dict:
         "description": n.description,
     }
     tags: List[Dict] = []
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         result["created_by"] = n.created_by.username
         result["created_on"] = str(n.created_on)
         result["updated_by"] = n.updated_by.username
@@ -159,7 +159,7 @@ def update_namespace_description(
     being thrown.
     """
     n = models.Namespace.objects.get(name=name)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         n.description = description
         n.save()
         logger.msg(
@@ -188,7 +188,7 @@ def add_namespace_admins(
     being thrown.
     """
     n = models.Namespace.objects.get(name=name)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         n.admins.add(*admins)
         logger.msg(
             "Add namespace administrators.",
@@ -216,7 +216,7 @@ def remove_namespace_admins(
     being thrown.
     """
     n = models.Namespace.objects.get(name=name)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         n.admins.remove(*admins)
         logger.msg(
             "Remove namespace administrators.",
@@ -256,7 +256,7 @@ def create_tag(
     Any other user making such a request will result in a PermissionError
     being thrown.
     """
-    if user.is_superuser or namespace.admins.filter(pk=user.pk).exists():
+    if user.is_admin or namespace.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.create_tag(
             user=user,
             name=name,
@@ -304,7 +304,7 @@ def get_tag(user: User, name: str, namespace: str) -> Dict:
     """
     n = models.Namespace.objects.get(name=namespace)
     tag = models.Tag.objects.get(name=name, namespace=n)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         result = {
             "name": tag.name,
             "namespace": n.name,
@@ -349,7 +349,7 @@ def update_tag_description(
     being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.get(name=name, namespace=n)
         t.description = description
         t.save()
@@ -380,7 +380,7 @@ def set_tag_private(
     being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.get(name=name, namespace=n)
         t.private = private
         t.save()
@@ -412,7 +412,7 @@ def add_tag_users(
     being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.get(name=name, namespace=n)
         t.users.add(*users)
         logger.msg(
@@ -443,7 +443,7 @@ def remove_tag_users(
     being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.get(name=name, namespace=n)
         t.users.remove(*users)
         logger.msg(
@@ -474,7 +474,7 @@ def add_tag_readers(
     being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.get(name=name, namespace=n)
         t.readers.add(*readers)
         logger.msg(
@@ -505,7 +505,7 @@ def remove_tag_readers(
     being thrown.
     """
     n = models.Namespace.objects.get(name=namespace)
-    if user.is_superuser or n.admins.filter(pk=user.pk).exists():
+    if user.is_admin or n.admins.filter(pk=user.pk).exists():
         t = models.Tag.objects.get(name=name, namespace=n)
         t.readers.remove(*readers)
         logger.msg(
@@ -529,7 +529,7 @@ def check_users_tags(user: models.User, tags: Set[str]) -> bool:
     objects.
     """
     # Site admins always have privileges.
-    if user.is_superuser:
+    if user.is_admin:
         return True
     # Count the number of tags that the user has permission to use.
     tag_matches = models.get_users_query(user, tags).count()
@@ -546,7 +546,7 @@ def check_readers_tags(user: models.User, tags: Set[str]) -> bool:
     onto objects.
     """
     # Site admins always have privileges.
-    if user.is_superuser:
+    if user.is_admin:
         return True
     # Count the number of tags that the user has permission to use.
     tag_matches = models.get_readers_query(user, tags).count()

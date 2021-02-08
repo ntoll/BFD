@@ -227,7 +227,7 @@ class UserSerializer(serializers.ModelSerializer):
     Manages how users are serialized to the outside world.
     """
 
-    username = serializers.CharField(read_only=True)
+    username = serializers.SlugField(read_only=True)
     email = serializers.EmailField(read_only=True)
     is_admin = serializers.BooleanField(source="is_superuser", read_only=True)
     last_login = serializers.DateTimeField(read_only=True)
@@ -247,21 +247,23 @@ class UserRoleSerializer(serializers.ModelSerializer):
     Manages how users are serialized when being specified for roles.
     """
 
-    username = serializers.CharField(required=True)
+    username = serializers.SlugField(required=True)
+    avatar = serializers.CharField(required=True)
 
     class Meta:
         model = models.User
         fields = [
             "username",
+            "avatar",
         ]
 
 
-class NamespaceSerializer(serializers.ModelSerializer):
+class NamespaceCreateSerializer(serializers.ModelSerializer):
     """
-    Manages how Namespace data comes in/out of the API.
+    Manages Namespace creation data.
     """
 
-    name = serializers.CharField(required=True)
+    name = serializers.SlugField(required=True)
     description = serializers.CharField(
         required=True, style={"base_template": "textarea.html"}
     )
@@ -272,12 +274,27 @@ class NamespaceSerializer(serializers.ModelSerializer):
         fields = ["name", "description", "admins"]
 
 
+class NamespaceUpdateSerializer(serializers.ModelSerializer):
+    """
+    Manages data to update a namespace.
+    """
+
+    description = serializers.CharField(
+        required=True, style={"base_template": "textarea.html"}
+    )
+    admins = UserRoleSerializer(many=True)
+
+    class Meta:
+        model = models.Namespace
+        fields = ["description", "admins"]
+
+
 class TagSerializer(serializers.ModelSerializer):
     """
     Manages how Tag data comes in/out of the API.
     """
 
-    name = serializers.CharField(read_only=True)
+    name = serializers.SlugField(read_only=True)
     description = serializers.CharField(
         required=True, style={"base_template": "textarea.html"}
     )
@@ -296,6 +313,21 @@ class TagSerializer(serializers.ModelSerializer):
             "users",
             "readers",
         ]
+
+
+class NamespaceDetailSerializer(serializers.ModelSerializer):
+    """
+    Manages outgoing Namespace detail data.
+    """
+
+    name = serializers.SlugField()
+    description = serializers.CharField()
+    admins = UserRoleSerializer(many=True)
+    tag_set = TagSerializer(many=True)
+
+    class Meta:
+        model = models.Namespace
+        fields = ["name", "description", "admins", "tag_set"]
 
 
 class StringValueSerializer(serializers.ModelSerializer):

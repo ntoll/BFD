@@ -46,5 +46,20 @@ urlpatterns = format_suffix_patterns(
             views.UserDetail.as_view(),
             name="user-detail",
         ),
+        path(
+            "new/n/",
+            views.NamespaceCreate.as_view(),
+            name="namespace-create",
+        ),
+        path(
+            "n/<slug:namespace>/",
+            views.NamespaceDetail.as_view(),
+            name="namespace-detail",
+        ),
+        path(
+            "t/<slug:namespace>/<slug:tag>/",
+            views.TagDetail.as_view(),
+            name="tag-detail",
+        ),
     ]
 )

@@ -27,7 +27,7 @@ yet robust argument is most welcome.
 **Contributions are subject to the following caveats**: the contribution
 was created by the contributor who, by submitting the contribution, is
 confirming that they have the authority to submit the contribution and
-place it under the license as defined in the [LICENSE](LICENSE) file found
+place it under the license as defined in the [LICENSE](LICENSE.md) file found
 within this repository. If this is a significant contribution
 the contributor should add themselves to the AUTHORS file found in the
 root of BFD's repository. Contributors agree, for the sake of convenience,

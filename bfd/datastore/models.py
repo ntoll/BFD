@@ -35,6 +35,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import time
+import hashlib
 from typing import Union, Dict, Type, Set
 from datetime import datetime, timedelta
 from django.core.files import uploadedfile  # type: ignore
@@ -125,6 +126,28 @@ class User(AbstractUser):
     EMAIL_FIELD = "email"
 
     objects = BFDUserManager()
+
+    @property
+    def avatar(self):
+        """
+        Return the Gravatar URL for the user's avatar derived from their
+        email address.
+        """
+        domain = "https://www.gravatar.com/avatar/"
+        email_hash = hashlib.md5(
+            self.email.lower().encode("utf-8")
+        ).hexdigest()
+        return f"{domain}{email_hash}"
+
+    @property
+    def is_admin(self):
+        """
+        Returns a boolean to indicate if the user is considered an admin user.
+
+        An admin user has either of Django's is_superuser or is_staff flags
+        set as True.
+        """
+        return self.is_staff or self.is_superuser
 
 
 class AbstractBaseValue(models.Model):

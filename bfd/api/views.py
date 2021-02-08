@@ -34,12 +34,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from datastore import models
+from datastore import models, logic
 from api import serializers
 from django.http import Http404
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
 
 
 class UserDetail(APIView):
@@ -58,4 +59,75 @@ class UserDetail(APIView):
     def get(self, request, username, format=None):
         user = self.get_object(username)
         serializer = serializers.UserSerializer(user)
+        return Response(serializer.data)
+
+
+class NamespaceCreate(APIView):
+    """
+    Create core information about a new namespace.
+    """
+
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, format=None):
+        serializer = serializers.NamespaceCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            ns = logic.create_namespace(
+                request.user,
+                serializer["name"].value,
+                serializer["description"].value,
+                serializer["admins"].value,
+            )
+            out = serializers.NamespaceDetailSerializer(ns)
+            return Response(out.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class NamespaceDetail(APIView):
+    """
+    Retrieve and set basic information about the referenced namespace.
+    """
+
+    def get_object(self, namespace):
+        try:
+            return models.Namespace.objects.get(name=namespace)
+        except models.Namespace.DoesNotExist:
+            raise Http404
+
+    def get(self, request, namespace, format=None):
+        ns_object = self.get_object(namespace)
+        serializer = serializers.NamespaceDetailSerializer(ns_object)
+        return Response(serializer.data)
+
+    def put(self, request, namespace, format=None):
+        ns_object = self.get_object(namespace)
+        serializer = serializers.NamespaceUpdateSerializer(
+            ns_object, data=request.data
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, namespace, format=None):
+        ns_object = self.get_object(namespace)
+        ns_object.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TagDetail(APIView):
+    """
+    Retrieve and set basic information about the referenced tag.
+    """
+
+    def get_object(self, namespace, tag):
+        try:
+            tag_path = f"{namespace}/{tag}"
+            return models.Tag.objects.get(path=tag_path)
+        except models.Tag.DoesNotExist:
+            raise Http404
+
+    def get(self, request, namespace, tag, format=None):
+        tag_object = self.get_object(namespace, tag)
+        serializer = serializers.TagSerializer(tag_object)
         return Response(serializer.data)
